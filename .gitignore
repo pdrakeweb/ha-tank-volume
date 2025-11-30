@@ -10,6 +10,11 @@ custom_components/*
 .ruff_cache/
 uv.lock
 
+# Virtual environment and shell configuration (when HOME is set to workspace)
+.local/
+.bashrc
+.zshrc
+
 # AI agent temporary scratch files and planning notes
 .ai-scratch/
 

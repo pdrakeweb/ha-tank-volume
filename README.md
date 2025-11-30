@@ -38,11 +38,24 @@ Both options use the same DevContainer setup, so your code and workflow are iden
 
 **🤖 Optional: Initialize with Copilot Coding Agent**
 
-After clicking "Create repository", GitHub may offer an optional prompt field for **Copilot Coding Agent**. You can use this to automatically initialize your integration:
+After clicking "Create repository", GitHub may offer an optional prompt field for **[Copilot Coding Agent](https://github.com/copilot/agents)**. You can use this to automatically initialize your integration (500 character limit):
 
-- Provide your integration details (domain, title, repository)
-- The agent will run the initialization script and create a pull request
-- See [`.github/COPILOT_CODING_AGENT.md`](.github/COPILOT_CODING_AGENT.md) for example prompts
+```markdown
+Run ./initialize.sh with: --domain <domain> --title "<Title>" --namespace "<Prefix>" --repo <owner/repo> --author "<Name>" --force
+
+Replace:
+- <domain>: lowercase_with_underscores
+- <Title>: Your Integration Name
+- <Prefix>: YourCamelCase (optional)
+- <owner/repo>: github_user/repo_name
+- <Name>: Your Name
+
+Verify: custom_components/<domain>/ exists, manifest.json correct, README.md updated. Create PR if successful. The script deletes itself after completion.
+```
+
+**Example:** `--domain my_device --title "My Device" --repo user/hacs-my-device --author "John Doe" --force`
+
+The agent uses `AGENTS.md` and `.github/copilot-instructions.md` for guidance and runs `./script/check` for validation.
 
 **Manual initialization?** Continue with Option 1 or Option 2 below.
 
