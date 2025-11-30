@@ -60,11 +60,35 @@ if [[ ! -d "$VENV_PATH" ]]; then
     uv venv "$VENV_PATH"
 fi
 
-# Create symlink only if venv is external (DevContainer/Codespaces)
-if [[ "$VENV_IS_EXTERNAL" == "true" && ! -e .local/ha-venv ]]; then
+# Create symlinks for IDE compatibility and tool expectations
+if [[ "$VENV_IS_EXTERNAL" == "true" ]]; then
+    # DevContainer: Create symlink from workspace to external venv
     log_step "Creating workspace symlink for IDE type checking"
     mkdir -p .local
-    ln -srf "$VENV_PATH" .local/ha-venv
+    # .local/ha-venv → ../../../home/vscode/.local/ha-venv (relative path)
+    if [[ -d .local/ha-venv && ! -L .local/ha-venv ]]; then
+        log_warning "Skipping .local/ha-venv: directory already exists (not a symlink)"
+    else
+        ln -sf "../../..${VENV_PATH#$HOME}" .local/ha-venv
+    fi
+fi
+
+# Create compatibility symlinks for common venv locations (all environments)
+log_step "Creating compatibility symlinks for tool expectations"
+mkdir -p .local
+
+# .venv → .local/ha-venv (Python/uv standard location)
+if [[ -d .venv && ! -L .venv ]]; then
+    log_warning "Skipping .venv: directory already exists (not a symlink)"
+else
+    ln -sf .local/ha-venv .venv
+fi
+
+# .local/venv → ha-venv (GitHub Copilot Agent expectation)
+if [[ -d .local/venv && ! -L .local/venv ]]; then
+    log_warning "Skipping .local/venv: directory already exists (not a symlink)"
+else
+    ln -sf ha-venv .local/venv
 fi
 
 # shellcheck source=/dev/null
