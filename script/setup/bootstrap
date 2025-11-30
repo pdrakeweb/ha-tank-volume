@@ -92,14 +92,15 @@ rm -rf /tmp/requirements*.txt /tmp/homeassistant/ || log_warning "Failed to clea
 set -e
 
 # Only install pre-commit hooks in local development, not in CI
-if [[ -d ".git" && -z "${CI:-}" ]]; then
+# GITHUB_ACTIONS is always set to "true" in GitHub Actions environments
+if [[ -d ".git" && -z "${GITHUB_ACTIONS:-}" ]]; then
     log_header "Installing pre-commit hooks"
     set +e
     pre-commit install || log_warning "Failed to install pre-commit hooks"
     set -e
 else
-    if [[ -n "${CI:-}" ]]; then
-        log_info "Skipping pre-commit hooks (running in CI environment)"
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+        log_info "Skipping pre-commit hooks (running in GitHub Actions)"
     else
         log_info "Skipping pre-commit hooks (not a Git repository)"
     fi
