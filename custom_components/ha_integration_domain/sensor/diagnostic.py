@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from custom_components.ha_integration_domain.entity import IntegrationBlueprintEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
-from homeassistant.const import EntityCategory, UnitOfTime
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -20,7 +20,7 @@ ENTITY_DESCRIPTIONS = (
         icon="mdi:percent",
         entity_category=EntityCategory.DIAGNOSTIC,
         device_class=SensorDeviceClass.POWER_FACTOR,
-        native_unit_of_measurement="%",
+        native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
         has_entity_name=True,

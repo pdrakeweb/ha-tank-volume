@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from custom_components.ha_integration_domain.entity import IntegrationBlueprintEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
+from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER
 
 if TYPE_CHECKING:
     from custom_components.ha_integration_domain.coordinator import IntegrationBlueprintDataUpdateCoordinator
@@ -27,8 +28,8 @@ ENTITY_DESCRIPTIONS = (
         icon="mdi:molecule",
         state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.PM25,
-        native_unit_of_measurement="µg/m³",
-        suggested_unit_of_measurement="µg/m³",
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        suggested_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
         suggested_display_precision=1,
         has_entity_name=True,
     ),
@@ -64,7 +65,7 @@ class IntegrationBlueprintAirQualitySensor(SensorEntity, IntegrationBlueprintEnt
             # Using both userId and id to create varied data
             return ((user_id * 47) + (api_id * 13)) % 501
 
-        # PM2.5 in µg/m³
+        # PM2.5 concentration
         if self.entity_description.key == "pm25":
             # Simulate PM2.5 based on API data (in production: use actual PM2.5 from API)
             return round(((user_id * 23.7) + (api_id * 5.3)) % 300, 1)
