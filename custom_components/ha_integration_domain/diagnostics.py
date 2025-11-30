@@ -1,5 +1,4 @@
-"""
-Diagnostics support for ha_integration_domain.
+"""Diagnostics support for ha_integration_domain.
 
 Learn more about diagnostics:
 https://developers.home-assistant.io/docs/core/integration_diagnostics
@@ -9,12 +8,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.redact import async_redact_data
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from .data import IntegrationBlueprintConfigEntry
+
+# Fields to redact from diagnostics - CRITICAL for security!
+TO_REDACT = {
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    "username",
+    "password",
+    "api_key",
+    "token",
+}
 
 
 async def async_get_config_entry_diagnostics(
@@ -63,10 +74,10 @@ async def async_get_config_entry_diagnostics(
         "data_keys": list(coordinator.data.keys()) if isinstance(coordinator.data, dict) else None,
     }
 
-    # API client information
+    # API client information (no sensitive data)
     api_info = {
-        "username": client._username,  # noqa: SLF001
         "base_endpoint": "https://jsonplaceholder.typicode.com",
+        "has_credentials": bool(client._username),  # noqa: SLF001
     }
 
     # Integration information
@@ -78,7 +89,7 @@ async def async_get_config_entry_diagnostics(
         "issue_tracker": integration.issue_tracker,
     }
 
-    # Config entry details
+    # Config entry details (with redacted sensitive data)
     entry_info = {
         "entry_id": entry.entry_id,
         "version": entry.version,
@@ -88,6 +99,8 @@ async def async_get_config_entry_diagnostics(
         "state": str(entry.state),
         "unique_id": entry.unique_id,
         "disabled_by": entry.disabled_by.value if entry.disabled_by else None,
+        "data": async_redact_data(entry.data, TO_REDACT),
+        "options": async_redact_data(entry.options, TO_REDACT),
     }
 
     # Error information
