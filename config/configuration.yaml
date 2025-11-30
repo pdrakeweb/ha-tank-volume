@@ -31,8 +31,7 @@ system_health:
 # Core integrations
 http:
   # Development server settings for Codespaces/DevContainer
-  # Using :: binds to both IPv4 and IPv6
-  server_host: "::"
+  server_host: "0.0.0.0"
   # Allow access from Codespaces reverse proxy
   use_x_forwarded_for: true
   trusted_proxies:
@@ -41,8 +40,6 @@ http:
     - 192.168.0.0/16
     - 172.16.0.0/12
     - 10.0.0.0/8
-    - fc00::/7   # IPv6 Unique Local Addresses
-    - fe80::/10  # IPv6 Link-Local Addresses
   # CORS for development
   cors_allowed_origins:
     - "*"
