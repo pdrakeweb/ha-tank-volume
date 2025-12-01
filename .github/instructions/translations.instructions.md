@@ -21,19 +21,6 @@ Translation files define user-facing text for config flows, options, entities, a
 
 **Language codes:** BCP47 format (e.g., `en`, `de`, `fr-CA`)
 
-## JSON Formatting
-
-**CRITICAL:** Translation files are JSON - use **double quotes only**, never single quotes:
-
-- ✅ `"title": "My Integration"`
-- ❌ `'title': 'My Integration'` (invalid JSON)
-
-**Other JSON rules:**
-
-- 2 spaces for indentation
-- No trailing commas
-- No comments
-
 ## Critical Instructions
 
 ### Translation Placeholders
@@ -43,13 +30,15 @@ Translation files define user-facing text for config flows, options, entities, a
 - Never translate placeholder names (e.g., `{host}` stays `{host}`, not `{hôte}`)
 - Placeholder names must match code exactly
 
-**CRITICAL: No single quotes around placeholders** - Home Assistant validation will fail:
+**CRITICAL: Quotes inside string values** - Do not use single quotes (`'`) within string content around placeholders:
 
-- ✅ `"message": "Service {service} is unavailable"`
+- ✅ `"message": "Service {service} is unavailable"` (no quotes around placeholder)
 - ✅ `"message": "Service \"{service}\" is unavailable"` (escaped double quotes)
-- ❌ `"message": "Service '{service}' is unavailable"` (single quotes = validation error)
+- ❌ `"message": "Service '{service}' is unavailable"` (single quotes cause hassfest errors)
 
-**Why:** Single quotes around placeholders are not translatable and cause hassfest errors.
+**Why:** Single quotes within strings around placeholders are not translatable across languages (e.g., German uses „…", French uses «…») and cause validation failures.
+
+**Note:** This is about quotes _inside the string value_, not the JSON delimiter quotes (which must always be double quotes per JSON spec).
 
 **Key references:** Use `[%key:...]` syntax to reuse translations
 
