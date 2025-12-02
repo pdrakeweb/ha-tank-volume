@@ -73,6 +73,10 @@
     {
       "fileMatch": ["hacs.json"],
       "url": "./schemas/json/hacs_schema.json"
+    },
+    {
+      "fileMatch": ["custom_components/*/icons.json"],
+      "url": "./schemas/json/icons_schema.json"
     }
   ]
 }

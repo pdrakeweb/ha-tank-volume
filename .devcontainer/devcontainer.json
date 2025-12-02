@@ -117,6 +117,10 @@
           {
             "fileMatch": ["hacs.json"],
             "url": "${containerWorkspaceFolder}/schemas/json/hacs_schema.json"
+          },
+          {
+            "fileMatch": ["custom_components/*/icons.json"],
+            "url": "${containerWorkspaceFolder}/schemas/json/icons_schema.json"
           }
         ]
       }
