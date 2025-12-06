@@ -125,7 +125,12 @@ else
     log_info "No runtime dependencies defined (this is normal for blueprints)"
 fi
 
-HA_VERSION=${HA_VERSION:-"2025.7.0"}
+HA_VERSION="${HA_VERSION:-$(grep '"homeassistant"' hacs.json | head -1 | sed 's/.*"homeassistant"\s*:\s*"\([^"]*\)".*/\1/')}"
+
+if [[ -z "$HA_VERSION" ]]; then
+    log_error "HA_VERSION not set and could not be determined from hacs.json"
+    exit 1
+fi
 HA_CORE_BASE_URL="https://raw.githubusercontent.com/home-assistant/core/${HA_VERSION}"
 
 log_header "Installing Home Assistant ${HA_VERSION} runtime dependencies"

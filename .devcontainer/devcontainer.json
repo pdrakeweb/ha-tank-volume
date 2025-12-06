@@ -4,14 +4,18 @@
   "postCreateCommand": "bash .devcontainer/setup-shell.sh && bash .devcontainer/setup-git.sh && script/setup/setup",
   "postAttachCommand": "bash .devcontainer/post-attach.sh",
   "containerEnv": {
-    // Home Assistant version to install in the devcontainer
-    "HA_VERSION": "2025.11.3",
+    // Home Assistant version to install in the devcontainer.
+    // Uncomment and set a specific version if needed (e.g., "2025.11.3").
+    // If not set, defaults to version from hacs.json.
+    // "HA_VERSION": "2025.11.3",
     // Install HACS in the Home Assistant installation
     "HA_INSTALL_HACS": "1",
     // Enable asyncio debug mode for easier debugging of async code
     "PYTHONASYNCIODEBUG": "1",
     // Ensure Python output is sent straight to terminal (e.g. for logging)
     "PYTHONUNBUFFERED": "1",
+    // Prevent Python from writing .pyc files to disk
+    "PYTHONDONTWRITEBYTECODE": "1",
     // Optionally update apt package lists after container creation
     "APT_UPDATE": "0"
   },
