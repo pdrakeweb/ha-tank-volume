@@ -47,12 +47,14 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             if end_cap_type in (END_CAP_ELLIPSOIDAL_2_1, END_CAP_ELLIPSOIDAL_CUSTOM):
                 # Validate cylinder length is required for end caps
-                if not user_input.get(CONF_CYLINDER_LENGTH) or user_input.get(CONF_CYLINDER_LENGTH, 0) <= 0:
+                cylinder_length = user_input.get(CONF_CYLINDER_LENGTH)
+                if not cylinder_length or cylinder_length <= 0:
                     errors[CONF_CYLINDER_LENGTH] = "invalid_cylinder_length"
                 
                 # Validate custom end cap depth
                 if end_cap_type == END_CAP_ELLIPSOIDAL_CUSTOM:
-                    if not user_input.get(CONF_END_CAP_DEPTH) or user_input.get(CONF_END_CAP_DEPTH, 0) <= 0:
+                    end_cap_depth = user_input.get(CONF_END_CAP_DEPTH)
+                    if not end_cap_depth or end_cap_depth <= 0:
                         errors[CONF_END_CAP_DEPTH] = "invalid_end_cap_depth"
             
             if not errors:
@@ -126,12 +128,14 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             
             if end_cap_type in (END_CAP_ELLIPSOIDAL_2_1, END_CAP_ELLIPSOIDAL_CUSTOM):
                 # Validate cylinder length is required for end caps
-                if not user_input.get(CONF_CYLINDER_LENGTH) or user_input.get(CONF_CYLINDER_LENGTH, 0) <= 0:
+                cylinder_length = user_input.get(CONF_CYLINDER_LENGTH)
+                if not cylinder_length or cylinder_length <= 0:
                     errors[CONF_CYLINDER_LENGTH] = "invalid_cylinder_length"
                 
                 # Validate custom end cap depth
                 if end_cap_type == END_CAP_ELLIPSOIDAL_CUSTOM:
-                    if not user_input.get(CONF_END_CAP_DEPTH) or user_input.get(CONF_END_CAP_DEPTH, 0) <= 0:
+                    end_cap_depth = user_input.get(CONF_END_CAP_DEPTH)
+                    if not end_cap_depth or end_cap_depth <= 0:
                         errors[CONF_END_CAP_DEPTH] = "invalid_end_cap_depth"
             
             if not errors:
