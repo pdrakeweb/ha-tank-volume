@@ -247,16 +247,25 @@ This repository includes a devcontainer configuration for easy development with 
 
 Once inside the devcontainer, you can run various tasks from the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
+- **Run Home Assistant**: Start Home Assistant with the integration loaded for testing
 - **Run Tests**: Execute the test suite with pytest
-- **Run Tests with Coverage**: Run tests and display code coverage report
-- **Lint with Flake8**: Check code style and quality
-- **Setup: Install Test Dependencies**: Install testing requirements
-- **Setup: Install Home Assistant**: Install Home Assistant core
 
 To run a task:
 1. Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
 2. Type "Tasks: Run Task"
 3. Select the desired task from the list
+
+### Development Scripts
+
+The repository includes helper scripts for development:
+
+```bash
+# Install test dependencies
+scripts/setup
+
+# Start Home Assistant with the integration loaded
+scripts/develop
+```
 
 ### Running Tests Manually
 
@@ -273,9 +282,14 @@ pytest tests/test_sensor.py -v
 
 ### Linting
 
+The devcontainer uses Ruff for code formatting and linting:
+
 ```bash
-# Check code style
-flake8 custom_components/tank_volume/ tests/
+# Format code (done automatically on save in VS Code)
+ruff format .
+
+# Check for linting issues
+ruff check .
 ```
 
 ## License
