@@ -7,7 +7,9 @@
         "data": {
           "name": "Name",
           "source_entity": "Source sensor (fill height in inches)",
-          "tank_diameter": "Tank diameter (inches)"
+          "tank_capacity": "Tank capacity",
+          "tank_diameter": "Tank diameter (inches)",
+          "end_cap_type": "End cap type"
         }
       }
     },
@@ -20,7 +22,9 @@
       "init": {
         "title": "Update Tank Volume Calculator",
         "data": {
-          "tank_diameter": "Tank diameter (inches)"
+          "tank_capacity": "Tank capacity",
+          "tank_diameter": "Tank diameter (inches)",
+          "end_cap_type": "End cap type"
         }
       }
     },
