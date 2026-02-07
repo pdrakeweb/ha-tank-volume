@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tank Volume Calculator Setup",
+        "description": "Configure the tank volume calculator sensor. This will convert liquid fill height (in inches) to volumetric fill percentage for a horizontal cylindrical tank.",
+        "data": {
+          "name": "Sensor Name",
+          "source_entity": "Source Sensor (Fill Height in Inches)",
+          "tank_diameter": "Tank Diameter (inches)"
+        }
+      }
+    },
+    "error": {
+      "invalid_diameter": "Tank diameter must be greater than zero"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Tank Volume Calculator",
+        "description": "Update the tank diameter configuration.",
+        "data": {
+          "tank_diameter": "Tank Diameter (inches)"
+        }
+      }
+    },
+    "error": {
+      "invalid_diameter": "Tank diameter must be greater than zero"
+    }
+  }
+}
