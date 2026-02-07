@@ -7,6 +7,7 @@ A Home Assistant custom integration that calculates the volumetric fill percenta
 - **Standard LP Tank Presets**: Pre-configured settings for common 250, 330, 500, and 1000 gallon tanks
 - **Accurate Volume Calculation**: Converts linear fill height measurements to volumetric fill percentage
 - **Ellipsoidal Head Support**: Accounts for standard 2:1 semi-ellipsoidal end caps found on most LP tanks
+- **Temperature Compensation**: Automatically adjusts volume readings based on liquid temperature to provide accurate measurements at reference temperature (60°F/15°C)
 - **Real-time Updates**: Automatically updates when source sensor changes
 - **Easy Configuration**: Simple UI-based setup with smart defaults
 - **Flexible Units**: Works with any distance sensor (ultrasonic, pressure, etc.)
@@ -39,6 +40,7 @@ A Home Assistant custom integration that calculates the volumetric fill percenta
 4. Fill in the configuration form:
    - **Name**: A friendly name for your tank
    - **Source sensor**: The entity that provides fill height in inches
+   - **Temperature sensor** (optional): A temperature sensor entity for temperature compensation
    - **Tank capacity**: Select your tank size:
      - **250 gallon** (30" diameter, 92" total length)
      - **330 gallon** (30" diameter, 120" total length)
@@ -106,6 +108,50 @@ A simple horizontal cylinder with flat ends.
 - You want to measure a section of pipe
 - You're using a custom cylindrical tank
 
+## Temperature Compensation
+
+### Why Temperature Compensation Matters
+
+Liquid propane (and other liquids) expand when heated and contract when cooled. This means that the same *mass* of propane occupies different *volumes* at different temperatures. For accurate inventory tracking and billing, volumes are typically standardized to a reference temperature.
+
+### How It Works
+
+When you configure a temperature sensor, the integration automatically compensates for temperature effects using industry-standard volumetric thermal expansion coefficients:
+
+- **For Fahrenheit sensors**: β = 0.00205 per °F (reference: 60°F)
+- **For Celsius sensors**: β = 0.00369 per °C (reference: 15°C)
+
+The formula used is:
+```
+V_reference = V_measured / [1 + β × (T_measured - T_reference)]
+```
+
+### Configuration
+
+1. Add a temperature sensor that measures the liquid temperature (not ambient air temperature)
+2. Select it in the configuration or options flow
+3. The sensor will automatically detect if it's Celsius or Fahrenheit
+4. Volume readings will be automatically compensated
+
+### Example
+
+If your tank reads 50% full at 80°F:
+- Measured volume: 50%
+- Temperature difference: 80°F - 60°F = 20°F
+- Compensation factor: 1 / (1 + 0.00205 × 20) ≈ 0.9606
+- Compensated volume: 50% × 0.9606 ≈ 48%
+
+This means that if the liquid cooled to the reference temperature (60°F), it would occupy about 48% of the tank.
+
+### Temperature Sensor Requirements
+
+- Must have `device_class: temperature`
+- Must provide numeric values
+- Must have `unit_of_measurement` set to either `°F` or `°C`
+- Should measure liquid temperature, not ambient air (for best accuracy)
+
+**Note**: Temperature compensation is optional. If no temperature sensor is configured, the integration will report volume at the measured temperature.
+
 ## Mathematical Background
 
 ### Pure Cylinder (Flat Ends)
@@ -150,11 +196,12 @@ Fill % = [V_total(h) / V_capacity] × 100
 
 ## Example Configurations
 
-### Example 1: Standard 500 Gallon LP Tank
+### Example 1: Standard 500 Gallon LP Tank with Temperature Compensation
 
 ```yaml
 Name: Propane Tank
 Source sensor: sensor.propane_ultrasonic_distance
+Temperature sensor: sensor.propane_temperature  # Optional but recommended
 Tank capacity: 500 gallon
 Tank diameter: 37.5  # Auto-filled
 End cap type: Ellipsoidal (typical)  # Default
@@ -163,18 +210,20 @@ End cap type: Ellipsoidal (typical)  # Default
 The integration automatically calculates:
 - Cylinder length: 101.25" (120" total - 2 × 9.375" heads)
 - Head depth: 9.375" (37.5" ÷ 4)
+- Temperature compensation (if sensor provided)
 
 ### Example 2: 250 Gallon LP Tank
 
 ```yaml
 Name: Small Propane Tank
 Source sensor: sensor.small_tank_level
+Temperature sensor: sensor.small_tank_temperature  # Optional
 Tank capacity: 250 gallon
 Tank diameter: 30  # Auto-filled
 End cap type: Ellipsoidal (typical)
 ```
 
-### Example 3: Custom Tank with Flat Ends
+### Example 3: Custom Tank with Flat Ends (No Temperature Compensation)
 
 ```yaml
 Name: Custom Cylindrical Tank
@@ -203,6 +252,9 @@ The sensor exposes the following attributes:
 - `fill_height_inches`: Current fill height in inches
 - `end_cap_type`: Type of end caps (flat or ellipsoidal_2_1)
 - `cylinder_length_inches`: Length of cylindrical section (if applicable)
+- `temperature_entity`: The entity ID of the temperature sensor (if configured)
+- `temperature`: Current liquid temperature (if temperature sensor configured)
+- `temperature_unit`: Unit of temperature measurement (°F or °C, if temperature sensor configured)
 
 ## Troubleshooting
 
