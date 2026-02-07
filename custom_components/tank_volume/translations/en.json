@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Tank Volume Calculator",
+        "description": "Configure the tank volume calculator to convert fill height to volumetric percentage.",
+        "data": {
+          "name": "Name",
+          "source_entity": "Source sensor (fill height in inches)",
+          "tank_diameter": "Tank diameter (inches)"
+        }
+      }
+    },
+    "error": {
+      "invalid_diameter": "Tank diameter must be greater than zero"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Tank Volume Calculator",
+        "data": {
+          "tank_diameter": "Tank diameter (inches)"
+        }
+      }
+    },
+    "error": {
+      "invalid_diameter": "Tank diameter must be greater than zero"
+    }
+  }
+}
