@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME, PERCENTAGE
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,12 +23,54 @@ from .const import (
     CONF_END_CAP_TYPE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_TEMPERATURE_ENTITY,
+    DEFAULT_REFERENCE_TEMP_C,
+    DEFAULT_REFERENCE_TEMP_F,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
     END_CAP_FLAT,
+    TEMP_EXPANSION_COEFF_C,
+    TEMP_EXPANSION_COEFF_F,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def apply_temperature_compensation(
+    volume_percentage: float,
+    temperature: float,
+    temperature_unit: str,
+) -> float:
+    """
+    Apply temperature compensation to volume percentage.
+    
+    Uses volumetric thermal expansion formula: V = V₀ × [1 + β × (T - T_ref)]
+    
+    Args:
+        volume_percentage: The calculated volume percentage at measured temperature
+        temperature: Current temperature of the liquid
+        temperature_unit: Unit of temperature (UnitOfTemperature.CELSIUS or FAHRENHEIT)
+    
+    Returns:
+        Adjusted volume percentage at reference temperature (60°F/15°C)
+    """
+    # Determine coefficient and reference temperature based on unit
+    if temperature_unit == UnitOfTemperature.CELSIUS:
+        beta = TEMP_EXPANSION_COEFF_C
+        reference_temp = DEFAULT_REFERENCE_TEMP_C
+    else:  # Default to Fahrenheit
+        beta = TEMP_EXPANSION_COEFF_F
+        reference_temp = DEFAULT_REFERENCE_TEMP_F
+    
+    # Calculate temperature difference from reference
+    temp_diff = temperature - reference_temp
+    
+    # Apply compensation factor
+    # Volume at measured temp = Volume at reference × [1 + β × ΔT]
+    # So: Volume at reference = Volume at measured temp / [1 + β × ΔT]
+    compensation_factor = 1.0 / (1.0 + beta * temp_diff)
+    
+    return volume_percentage * compensation_factor
 
 
 def compute_horizontal_cylinder_volume_percentage(
@@ -213,6 +256,11 @@ async def async_setup_entry(
     cylinder_length = config_entry.options.get(
         CONF_CYLINDER_LENGTH, config_entry.data.get(CONF_CYLINDER_LENGTH)
     )
+    
+    # Get temperature entity (optional)
+    temperature_entity = config_entry.options.get(
+        CONF_TEMPERATURE_ENTITY, config_entry.data.get(CONF_TEMPERATURE_ENTITY)
+    )
 
     sensor = TankVolumeSensor(
         config_entry.entry_id,
@@ -221,6 +269,7 @@ async def async_setup_entry(
         tank_diameter,
         end_cap_type,
         cylinder_length,
+        temperature_entity,
     )
 
     async_add_entities([sensor], True)
@@ -243,6 +292,7 @@ class TankVolumeSensor(SensorEntity):
         tank_diameter: float,
         end_cap_type: str = END_CAP_ELLIPSOIDAL_2_1,
         cylinder_length: float | None = None,
+        temperature_entity: str | None = None,
     ) -> None:
         """Initialize the sensor."""
         self._entry_id = entry_id
@@ -251,7 +301,10 @@ class TankVolumeSensor(SensorEntity):
         self._tank_diameter = tank_diameter
         self._end_cap_type = end_cap_type
         self._cylinder_length = cylinder_length
+        self._temperature_entity = temperature_entity
         self._fill_height: float | None = None
+        self._temperature: float | None = None
+        self._temperature_unit: str | None = None
         self._attr_unique_id = f"{entry_id}_volume_percentage"
 
     @property
@@ -276,6 +329,12 @@ class TankVolumeSensor(SensorEntity):
         }
         if self._cylinder_length is not None:
             attrs["cylinder_length_inches"] = self._cylinder_length
+        if self._temperature_entity:
+            attrs["temperature_entity"] = self._temperature_entity
+            if self._temperature is not None:
+                attrs["temperature"] = self._temperature
+                if self._temperature_unit:
+                    attrs["temperature_unit"] = self._temperature_unit
         return attrs
 
     async def async_added_to_hass(self) -> None:
@@ -287,9 +346,17 @@ class TankVolumeSensor(SensorEntity):
             self._handle_source_state(state.state)
 
         # Track state changes
+        track_entities = [self._source_entity]
+        
+        # Read temperature entity if configured
+        if self._temperature_entity:
+            track_entities.append(self._temperature_entity)
+            if (temp_state := self.hass.states.get(self._temperature_entity)) is not None:
+                self._handle_temperature_state(temp_state)
+        
         self.async_on_remove(
             async_track_state_change_event(
-                self.hass, [self._source_entity], self._async_source_changed
+                self.hass, track_entities, self._async_source_changed
             )
         )
 
@@ -300,7 +367,15 @@ class TankVolumeSensor(SensorEntity):
         if new_state is None:
             return
 
-        self._handle_source_state(new_state.state)
+        entity_id = new_state.entity_id
+        
+        # Handle source entity changes
+        if entity_id == self._source_entity:
+            self._handle_source_state(new_state.state)
+        # Handle temperature entity changes
+        elif entity_id == self._temperature_entity:
+            self._handle_temperature_state(new_state)
+            
         self.async_write_ha_state()
 
     def _handle_source_state(self, state_value: str) -> None:
@@ -332,6 +407,17 @@ class TankVolumeSensor(SensorEntity):
                     self._end_cap_type,
                 )
 
+            # Apply temperature compensation if configured and available
+            if (
+                percentage is not None
+                and self._temperature_entity
+                and self._temperature is not None
+                and self._temperature_unit is not None
+            ):
+                percentage = apply_temperature_compensation(
+                    percentage, self._temperature, self._temperature_unit
+                )
+
             self._attr_native_value = percentage
         except (ValueError, TypeError):
             _LOGGER.warning(
@@ -339,3 +425,39 @@ class TankVolumeSensor(SensorEntity):
             )
             self._attr_native_value = None
             self._fill_height = None
+
+    def _handle_temperature_state(self, state: Any) -> None:
+        """Handle temperature entity state."""
+        # Handle unavailable or unknown states
+        if state.state in ("unknown", "unavailable", None):
+            self._temperature = None
+            self._temperature_unit = None
+            return
+
+        # Try to parse temperature
+        try:
+            self._temperature = float(state.state)
+            # Get the unit of measurement from the state attributes
+            self._temperature_unit = state.attributes.get("unit_of_measurement")
+            
+            # Validate unit
+            if self._temperature_unit not in (
+                UnitOfTemperature.CELSIUS,
+                UnitOfTemperature.FAHRENHEIT,
+            ):
+                _LOGGER.warning(
+                    "Temperature entity has unsupported unit '%s', expected C or F",
+                    self._temperature_unit,
+                )
+                self._temperature_unit = UnitOfTemperature.FAHRENHEIT  # Default to F
+                
+            # Recalculate volume with new temperature if we have fill height
+            if self._fill_height is not None:
+                # Trigger recalculation by calling handler with current fill height
+                self._handle_source_state(str(self._fill_height))
+        except (ValueError, TypeError):
+            _LOGGER.warning(
+                "Unable to parse temperature entity state '%s' as a number", state.state
+            )
+            self._temperature = None
+            self._temperature_unit = None

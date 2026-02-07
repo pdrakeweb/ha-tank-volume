@@ -10,6 +10,7 @@ CONF_END_CAP_TYPE = "end_cap_type"
 CONF_END_CAP_DEPTH = "end_cap_depth"
 CONF_CYLINDER_LENGTH = "cylinder_length"
 CONF_TANK_CAPACITY = "tank_capacity"
+CONF_TEMPERATURE_ENTITY = "temperature_entity"
 
 # End cap types
 END_CAP_FLAT = "flat"
@@ -34,6 +35,13 @@ TANK_SPECS = {
 DEFAULT_NAME = "Tank Volume"
 DEFAULT_END_CAP_TYPE = END_CAP_ELLIPSOIDAL_2_1  # Most common for LP tanks
 DEFAULT_TANK_CAPACITY = CAPACITY_500
+DEFAULT_REFERENCE_TEMP_F = 60.0  # Standard reference temperature for propane
+DEFAULT_REFERENCE_TEMP_C = 15.0  # Standard reference temperature for propane
+
+# Temperature compensation coefficients (volumetric expansion per degree)
+# Based on industry standards for liquid propane
+TEMP_EXPANSION_COEFF_F = 0.00205  # per °F
+TEMP_EXPANSION_COEFF_C = 0.00369  # per °C
 
 # Platforms
 PLATFORMS = ["sensor"]

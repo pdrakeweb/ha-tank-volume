@@ -22,6 +22,7 @@ from .const import (
     CONF_SOURCE_ENTITY,
     CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
+    CONF_TEMPERATURE_ENTITY,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
     DEFAULT_TANK_CAPACITY,
@@ -113,6 +114,9 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
                 vol.Required(CONF_SOURCE_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
                 vol.Required(CONF_TANK_CAPACITY, default=default_capacity): selector.SelectSelector(
                     selector.SelectSelectorConfig(
@@ -211,9 +215,18 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_END_CAP_TYPE,
             self.config_entry.data.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE),
         )
+        current_temperature_entity = self.config_entry.options.get(
+            CONF_TEMPERATURE_ENTITY,
+            self.config_entry.data.get(CONF_TEMPERATURE_ENTITY),
+        )
 
         data_schema = vol.Schema(
             {
+                vol.Optional(
+                    CONF_TEMPERATURE_ENTITY, default=current_temperature_entity
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                ),
                 vol.Required(
                     CONF_TANK_CAPACITY, default=current_capacity
                 ): selector.SelectSelector(
