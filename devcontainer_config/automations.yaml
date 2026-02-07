@@ -1,0 +1,66 @@
+# Example automations for testing tank volume calculations
+# This file demonstrates automations only
+# For scripts, add them to scripts.yaml or configuration.yaml
+
+# Automation 1: Simulate a tank slowly filling up
+- alias: "Simulate Tank Filling"
+  description: "Gradually increase tank height every 30 seconds"
+  trigger:
+    - platform: time_pattern
+      seconds: "/30"
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('sensor.propane_tank_height') | float(0) < 37.5 }}
+  action:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.propane_tank_height
+        value: >
+          {{ [states('sensor.propane_tank_height') | float(0) + 1, 37.5] | min }}
+
+# Automation 2: Simulate a tank draining
+- alias: "Simulate Tank Draining"
+  description: "Gradually decrease tank height every minute"
+  trigger:
+    - platform: time_pattern
+      minutes: "/1"
+  condition:
+    - condition: template
+      value_template: >
+        {{ states('sensor.small_tank_height') | float(30) > 0 }}
+  action:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.small_tank_height
+        value: >
+          {{ [states('sensor.small_tank_height') | float(30) - 0.5, 0] | max }}
+
+# Automation 3: Cycle through different fill levels
+- alias: "Cycle Fill Levels"
+  description: "Change empty tank through predefined fill levels"
+  trigger:
+    - platform: time_pattern
+      minutes: "/2"
+  action:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.empty_tank_height
+        value: >
+          {% set current = states('sensor.empty_tank_height') | float(0) %}
+          {% set levels = [0, 9.375, 18.75, 28.125, 37.5] %}
+          {% set current_index = levels.index(current) if current in levels else 0 %}
+          {% set next_index = (current_index + 1) % (levels | length) %}
+          {{ levels[next_index] }}
+
+# Automation 4: Random fill level changes
+- alias: "Random Fill Changes"
+  description: "Set full tank to random heights for stress testing"
+  trigger:
+    - platform: time_pattern
+      minutes: "/5"
+  action:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.full_tank_height
+        value: "{{ range(0, 376) | random / 10 }}"

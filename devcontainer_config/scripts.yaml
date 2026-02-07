@@ -1,0 +1,42 @@
+# Example scripts for testing tank volume calculations
+# Add to your configuration.yaml with: script: !include scripts.yaml
+
+# Script: Reset all tanks to specific percentages
+reset_tanks_to_defaults:
+  alias: "Reset All Tanks to Default Values"
+  sequence:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.propane_tank_height
+        value: 9.4  # ~25% for 37.5" tank
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.small_tank_height
+        value: 15.0  # 50% for 30" tank
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.empty_tank_height
+        value: 0.0
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: sensor.full_tank_height
+        value: 37.5
+
+# Script: Fill tank to specific percentage
+fill_tank_to_percentage:
+  alias: "Fill Tank to Percentage"
+  fields:
+    entity_id:
+      description: "Entity ID of the mock sensor"
+      example: "sensor.propane_tank_height"
+    percentage:
+      description: "Target fill percentage (0-100)"
+      example: 75
+    diameter:
+      description: "Tank diameter in inches"
+      example: 37.5
+  sequence:
+    - service: mock_tank_height_sensor.set_value
+      data:
+        entity_id: "{{ entity_id }}"
+        value: "{{ (diameter * percentage / 100) | round(2) }}"

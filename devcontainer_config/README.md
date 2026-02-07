@@ -85,6 +85,30 @@ Once Home Assistant is running with mock sensors:
 
 6. Use the mock sensor service to change the height and watch the volume update in real-time
 
+## Automated Testing with Varying Values
+
+For automated testing scenarios, you can use the example automations and scripts provided:
+
+```bash
+# Copy automations to your config
+cp devcontainer_config/automations.yaml ~/.homeassistant/automations.yaml
+
+# Copy scripts to your config (or include in configuration.yaml)
+cp devcontainer_config/scripts.yaml ~/.homeassistant/scripts.yaml
+```
+
+The example automations include:
+- **Simulate Tank Filling**: Gradually increases height every 30 seconds
+- **Simulate Tank Draining**: Gradually decreases height every minute
+- **Cycle Fill Levels**: Cycles through 0%, 25%, 50%, 75%, 100% fill levels
+- **Random Fill Changes**: Sets random heights for stress testing
+
+The example scripts include:
+- **Reset All Tanks**: Resets all mock sensors to default values
+- **Fill Tank to Percentage**: Helper to set a tank to a specific fill percentage
+
+Enable automations in the Home Assistant UI: **Settings** → **Automations & Scenes** → Enable desired automations
+
 ## Common Test Scenarios
 
 ### Test 1: Empty to Full Tank
