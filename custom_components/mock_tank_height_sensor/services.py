@@ -37,7 +37,10 @@ def setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("Entity %s not found", entity_id)
             return
 
-        # Set the new value via the state
+        # Update the state directly via state machine
+        # This is appropriate for a mock sensor that doesn't need complex
+        # internal state management. The sensor will reflect this change
+        # on its next state read.
         hass.states.async_set(
             entity_id,
             value,

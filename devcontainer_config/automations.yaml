@@ -49,7 +49,8 @@
         value: >
           {% set current = states('sensor.empty_tank_height') | float(0) %}
           {% set levels = [0, 9.375, 18.75, 28.125, 37.5] %}
-          {% set current_index = levels.index(current) if current in levels else 0 %}
+          {% set rounded = (current * 1000) | int / 1000 %}
+          {% set current_index = levels.index(rounded) if rounded in levels else 0 %}
           {% set next_index = (current_index + 1) % (levels | length) %}
           {{ levels[next_index] }}
 

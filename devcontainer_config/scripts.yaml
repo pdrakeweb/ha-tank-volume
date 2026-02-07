@@ -32,11 +32,11 @@ fill_tank_to_percentage:
     percentage:
       description: "Target fill percentage (0-100)"
       example: 75
-    diameter:
-      description: "Tank diameter in inches"
+    tank_diameter:
+      description: "Tank diameter in inches (maximum height)"
       example: 37.5
   sequence:
     - service: mock_tank_height_sensor.set_value
       data:
         entity_id: "{{ entity_id }}"
-        value: "{{ (diameter * percentage / 100) | round(2) }}"
+        value: "{{ (tank_diameter * percentage / 100) | round(2) }}"
