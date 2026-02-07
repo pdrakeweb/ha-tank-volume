@@ -8,8 +8,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
-from homeassistant.helpers.typing import ConfigFlowResult
 
 from .const import (
     CAPACITY_1000,
@@ -52,7 +52,7 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> FlowResult:
         """Handle the initial step."""
         errors = {}
 
@@ -167,7 +167,7 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> FlowResult:
         """Manage the options."""
         errors = {}
 
@@ -220,43 +220,56 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             self.config_entry.data.get(CONF_TEMPERATURE_ENTITY),
         )
 
-        data_schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_TEMPERATURE_ENTITY, default=current_temperature_entity
-                ): selector.EntitySelector(
+        # Build the schema
+        schema_dict = {}
+        
+        # Temperature entity (optional, only add default if it exists)
+        if current_temperature_entity:
+            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY, default=current_temperature_entity)] = (
+                selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                ),
-                vol.Required(
-                    CONF_TANK_CAPACITY, default=current_capacity
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": CAPACITY_250, "label": "250 gallon"},
-                            {"value": CAPACITY_330, "label": "330 gallon"},
-                            {"value": CAPACITY_500, "label": "500 gallon"},
-                            {"value": CAPACITY_1000, "label": "1000 gallon"},
-                            {"value": CAPACITY_CUSTOM, "label": "Custom"},
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-                vol.Required(
-                    CONF_TANK_DIAMETER, default=current_diameter
-                ): vol.Coerce(float),
-                vol.Optional(
-                    CONF_END_CAP_TYPE, default=current_end_cap_type
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": END_CAP_ELLIPSOIDAL_2_1, "label": "Ellipsoidal (typical)"},
-                            {"value": END_CAP_FLAT, "label": "Flat"},
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-            }
-        )
+                )
+            )
+        else:
+            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY)] = (
+                selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                )
+            )
+        
+        # Add other fields
+        schema_dict.update({
+            vol.Required(
+                CONF_TANK_CAPACITY, default=current_capacity
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": CAPACITY_250, "label": "250 gallon"},
+                        {"value": CAPACITY_330, "label": "330 gallon"},
+                        {"value": CAPACITY_500, "label": "500 gallon"},
+                        {"value": CAPACITY_1000, "label": "1000 gallon"},
+                        {"value": CAPACITY_CUSTOM, "label": "Custom"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(
+                CONF_TANK_DIAMETER, default=current_diameter
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_END_CAP_TYPE, default=current_end_cap_type
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        {"value": END_CAP_ELLIPSOIDAL_2_1, "label": "Ellipsoidal (typical)"},
+                        {"value": END_CAP_FLAT, "label": "Flat"},
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        })
+
+        data_schema = vol.Schema(schema_dict)
 
         return self.async_show_form(
             step_id="init",
