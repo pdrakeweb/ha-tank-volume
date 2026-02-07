@@ -6,10 +6,10 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import selector
-from homeassistant.helpers.typing import ConfigFlowResult
 
 from .const import (
     CAPACITY_1000,
@@ -151,15 +151,11 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> TankVolumeOptionsFlowHandler:
         """Get the options flow for this handler."""
-        return TankVolumeOptionsFlowHandler(config_entry)
+        return TankVolumeOptionsFlowHandler()
 
 
 class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Tank Volume Calculator options."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
