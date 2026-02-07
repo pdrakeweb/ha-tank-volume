@@ -7,12 +7,17 @@
         "data": {
           "name": "Name",
           "source_entity": "Source sensor (fill height in inches)",
-          "tank_diameter": "Tank diameter (inches)"
+          "tank_diameter": "Tank diameter (inches)",
+          "end_cap_type": "End cap type",
+          "cylinder_length": "Cylinder length (inches, excluding end caps)",
+          "end_cap_depth": "End cap depth (inches, for custom ellipsoidal)"
         }
       }
     },
     "error": {
-      "invalid_diameter": "Tank diameter must be greater than zero"
+      "invalid_diameter": "Tank diameter must be greater than zero",
+      "invalid_cylinder_length": "Cylinder length must be greater than zero when using end caps",
+      "invalid_end_cap_depth": "End cap depth must be greater than zero for custom ellipsoidal"
     }
   },
   "options": {
@@ -20,12 +25,17 @@
       "init": {
         "title": "Update Tank Volume Calculator",
         "data": {
-          "tank_diameter": "Tank diameter (inches)"
+          "tank_diameter": "Tank diameter (inches)",
+          "end_cap_type": "End cap type",
+          "cylinder_length": "Cylinder length (inches, excluding end caps)",
+          "end_cap_depth": "End cap depth (inches, for custom ellipsoidal)"
         }
       }
     },
     "error": {
-      "invalid_diameter": "Tank diameter must be greater than zero"
+      "invalid_diameter": "Tank diameter must be greater than zero",
+      "invalid_cylinder_length": "Cylinder length must be greater than zero when using end caps",
+      "invalid_end_cap_depth": "End cap depth must be greater than zero for custom ellipsoidal"
     }
   }
 }
