@@ -235,6 +235,22 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This repository includes a devcontainer configuration for easy development with Visual Studio Code.
 
+### Mock Tank Height Sensor for Testing
+
+To facilitate testing without physical hardware, this repository includes a mock tank height sensor integration. This allows you to:
+
+- Create sensors that measure tank height in inches
+- Configure sensors with initial values
+- Dynamically change values via Home Assistant services
+- Test the tank volume calculator with various scenarios
+
+To use it:
+```bash
+./devcontainer_config/start_hass.sh
+```
+
+This starts Home Assistant with pre-configured mock sensors. See [TESTING.md](TESTING.md) and [devcontainer_config/README.md](devcontainer_config/README.md) for detailed testing instructions.
+
 ### Using the Devcontainer
 
 1. Install [Docker](https://www.docker.com/products/docker-desktop) and [Visual Studio Code](https://code.visualstudio.com/)
