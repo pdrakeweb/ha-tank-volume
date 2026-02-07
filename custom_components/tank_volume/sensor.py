@@ -44,7 +44,14 @@ def apply_temperature_compensation(
     """
     Apply temperature compensation to volume percentage.
     
-    Uses volumetric thermal expansion formula: V = V₀ × [1 + β × (T - T_ref)]
+    Converts volume measured at a specific temperature to the equivalent volume
+    at the reference temperature using inverse volumetric thermal expansion.
+    
+    Formula: V_ref = V_measured / [1 + β × (T_measured - T_ref)]
+    
+    This accounts for the fact that liquids expand when heated and contract when
+    cooled. The measured volume at a higher temperature represents a smaller volume
+    at the reference temperature, and vice versa.
     
     Args:
         volume_percentage: The calculated volume percentage at measured temperature
@@ -440,16 +447,19 @@ class TankVolumeSensor(SensorEntity):
             # Get the unit of measurement from the state attributes
             self._temperature_unit = state.attributes.get("unit_of_measurement")
             
-            # Validate unit
+            # Validate unit - if unsupported, disable temperature compensation
             if self._temperature_unit not in (
                 UnitOfTemperature.CELSIUS,
                 UnitOfTemperature.FAHRENHEIT,
             ):
                 _LOGGER.warning(
-                    "Temperature entity has unsupported unit '%s', expected C or F",
+                    "Temperature entity has unsupported unit '%s', expected C or F. "
+                    "Temperature compensation will be disabled.",
                     self._temperature_unit,
                 )
-                self._temperature_unit = UnitOfTemperature.FAHRENHEIT  # Default to F
+                self._temperature = None
+                self._temperature_unit = None
+                return
                 
             # Recalculate volume with new temperature if we have fill height
             if self._fill_height is not None:

@@ -1,5 +1,4 @@
 """Tests for Tank Volume Calculator config flow."""
-from types import MappingProxyType
 from unittest.mock import patch
 
 import pytest

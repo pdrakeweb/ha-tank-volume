@@ -221,21 +221,18 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
         # Build the schema
+        # Create the entity selector (reused in both cases)
+        temp_entity_selector = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+        )
+        
         schema_dict = {}
         
         # Temperature entity (optional, only add default if it exists)
         if current_temperature_entity:
-            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY, default=current_temperature_entity)] = (
-                selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                )
-            )
+            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY, default=current_temperature_entity)] = temp_entity_selector
         else:
-            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY)] = (
-                selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
-                )
-            )
+            schema_dict[vol.Optional(CONF_TEMPERATURE_ENTITY)] = temp_entity_selector
         
         # Add other fields
         schema_dict.update({
