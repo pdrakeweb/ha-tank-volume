@@ -27,6 +27,7 @@
                 "files.trimTrailingWhitespace": true,
                 "python.analysis.typeCheckingMode": "basic",
                 "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "black-formatter.args": ["--line-length=88"],
                 "[python]": {
                     "editor.defaultFormatter": "ms-python.black-formatter"
                 }

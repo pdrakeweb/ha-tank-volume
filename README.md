@@ -265,7 +265,7 @@ To run a task:
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=custom_components.tank_volume --cov-report=term-missing -v
+pytest tests/ --cov=custom_components/tank_volume --cov-report=term-missing -v
 
 # Run a specific test file
 pytest tests/test_sensor.py -v

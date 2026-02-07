@@ -27,7 +27,7 @@
             "command": "pytest",
             "args": [
                 "tests/",
-                "--cov=custom_components.tank_volume",
+                "--cov=custom_components/tank_volume",
                 "--cov-report=term-missing",
                 "-v"
             ],
