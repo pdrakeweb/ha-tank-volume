@@ -1,0 +1,24 @@
+# Describes the services available for Mock Tank Height Sensor
+set_value:
+  name: Set sensor value
+  description: Set the value of a mock tank height sensor
+  fields:
+    entity_id:
+      name: Entity
+      description: Entity ID of the mock tank height sensor to update
+      required: true
+      example: "sensor.mock_tank_height"
+      selector:
+        entity:
+          domain: sensor
+    value:
+      name: Value
+      description: New height value in inches
+      required: true
+      example: 12.5
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.1
+          unit_of_measurement: "in"

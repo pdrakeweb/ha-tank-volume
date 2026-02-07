@@ -1,0 +1,62 @@
+# Example Home Assistant configuration for devcontainer testing
+# Copy this file to your config directory and rename to configuration.yaml
+# Then customize as needed for your testing scenario
+
+# Basic Home Assistant configuration
+homeassistant:
+  name: "Tank Volume Testing"
+  unit_system: imperial
+  time_zone: America/New_York
+  country: US
+
+# Enable the frontend
+frontend:
+
+# Enable configuration UI
+config:
+
+# Enable system health tracking
+system_health:
+
+# Enable HTTP for web access
+http:
+  server_port: 8123
+
+# Recorder - store history in memory for testing
+recorder:
+  db_url: "sqlite:///:memory:"
+
+# History
+history:
+
+# Logbook
+logbook:
+
+# Mock tank height sensors for testing tank volume calculations
+sensor:
+  # Example 1: 500 gallon tank at 25% (roughly 9.4 inches for 37.5" diameter)
+  - platform: mock_tank_height_sensor
+    name: "Propane Tank Height"
+    initial_value: 9.4
+
+  # Example 2: 250 gallon tank at 50% (15 inches for 30" diameter)
+  - platform: mock_tank_height_sensor
+    name: "Small Tank Height"
+    initial_value: 15.0
+
+  # Example 3: Empty tank for testing
+  - platform: mock_tank_height_sensor
+    name: "Empty Tank Height"
+    initial_value: 0.0
+
+  # Example 4: Full tank for testing
+  - platform: mock_tank_height_sensor
+    name: "Full Tank Height"
+    initial_value: 37.5
+
+# Logger configuration for debugging
+logger:
+  default: info
+  logs:
+    custom_components.mock_tank_height_sensor: debug
+    custom_components.tank_volume: debug

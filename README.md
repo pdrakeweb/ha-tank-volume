@@ -271,6 +271,30 @@ pytest tests/ --cov=custom_components/tank_volume --cov-report=term-missing -v
 pytest tests/test_sensor.py -v
 ```
 
+### Testing with Home Assistant in Devcontainer
+
+For interactive testing with a live Home Assistant instance:
+
+```bash
+# Start Home Assistant with mock sensors
+./devcontainer_config/start_hass.sh
+```
+
+This will:
+- Set up a Home Assistant instance in the devcontainer
+- Install the tank_volume integration
+- Install the mock_tank_height_sensor integration (provides test sensors)
+- Configure example mock sensors with various fill levels
+- Start Home Assistant at http://localhost:8123
+
+The mock sensor integration allows you to:
+- Create sensors that measure tank height in inches
+- Set initial values via configuration
+- Change values dynamically via Home Assistant services
+- Test the tank volume calculations with different scenarios
+
+See [devcontainer_config/README.md](devcontainer_config/README.md) for detailed testing instructions.
+
 ### Linting
 
 ```bash
