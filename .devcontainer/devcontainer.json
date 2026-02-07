@@ -1,7 +1,7 @@
 {
-    "name": "Home Assistant Tank Volume",
-    "image": "mcr.microsoft.com/devcontainers/python:3.12",
-    "postCreateCommand": "pip install --upgrade pip && pip install -r requirements_test.txt && pip install homeassistant",
+    "name": "ha-tank-volume",
+    "image": "mcr.microsoft.com/devcontainers/python:3.13",
+    "postCreateCommand": "scripts/setup",
     "forwardPorts": [
         8123
     ],
@@ -14,25 +14,32 @@
     "customizations": {
         "vscode": {
             "extensions": [
+                "charliermarsh.ruff",
+                "github.vscode-pull-request-github",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
-                "ms-python.black-formatter",
-                "charliermarsh.ruff",
-                "redhat.vscode-yaml"
+                "ryanluker.vscode-coverage-gutters"
             ],
             "settings": {
                 "files.eol": "\n",
                 "editor.tabSize": 4,
+                "editor.formatOnPaste": true,
                 "editor.formatOnSave": true,
+                "editor.formatOnType": false,
                 "files.trimTrailingWhitespace": true,
                 "python.analysis.typeCheckingMode": "basic",
+                "python.analysis.autoImportCompletions": true,
                 "python.defaultInterpreterPath": "/usr/local/bin/python",
-                "black-formatter.args": ["--line-length=88"],
                 "[python]": {
-                    "editor.defaultFormatter": "ms-python.black-formatter"
+                    "editor.defaultFormatter": "charliermarsh.ruff"
                 }
             }
         }
     },
-    "remoteUser": "vscode"
+    "remoteUser": "vscode",
+    "features": {
+        "ghcr.io/devcontainers-extra/features/apt-packages:1": {
+            "packages": "ffmpeg,libturbojpeg0,libpcap-dev"
+        }
+    }
 }
