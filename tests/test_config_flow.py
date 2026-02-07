@@ -8,8 +8,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
+    CONF_CYLINDER_LENGTH,
+    CONF_END_CAP_TYPE,
     CONF_NAME,
     CONF_SOURCE_ENTITY,
+    CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
     CONF_TEMPERATURE_ENTITY,
     DEFAULT_NAME,
@@ -41,9 +44,14 @@ async def test_form(hass: HomeAssistant) -> None:
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     assert result2["title"] == "Test Tank"
+    # Verify the essential fields
     assert result2["data"][CONF_NAME] == "Test Tank"
     assert result2["data"][CONF_SOURCE_ENTITY] == "sensor.fill_height"
     assert result2["data"][CONF_TANK_DIAMETER] == 24.0
+    # Verify the auto-calculated fields are present
+    assert CONF_CYLINDER_LENGTH in result2["data"]
+    assert CONF_END_CAP_TYPE in result2["data"]
+    assert CONF_TANK_CAPACITY in result2["data"]
     assert len(mock_setup_entry.mock_calls) == 1
 
 
@@ -138,9 +146,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
             CONF_TANK_DIAMETER: 24.0,
         },
         options={},
-        source=config_entries.SOURCE_USER,
         unique_id="sensor.fill_height",
-        entry_id="test_entry_id",
     )
     entry.add_to_hass(hass)
 
@@ -157,7 +163,12 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     )
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
+    # Verify the essential field
     assert result2["data"][CONF_TANK_DIAMETER] == 36.0
+    # Verify the auto-calculated fields are present  
+    assert CONF_CYLINDER_LENGTH in result2["data"]
+    assert CONF_END_CAP_TYPE in result2["data"]
+    assert CONF_TANK_CAPACITY in result2["data"]
 
 
 async def test_options_flow_invalid_diameter(hass: HomeAssistant) -> None:
@@ -172,9 +183,7 @@ async def test_options_flow_invalid_diameter(hass: HomeAssistant) -> None:
             CONF_TANK_DIAMETER: 24.0,
         },
         options={},
-        source=config_entries.SOURCE_USER,
         unique_id="sensor.fill_height",
-        entry_id="test_entry_id",
     )
     entry.add_to_hass(hass)
 

@@ -7,12 +7,15 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
     CONF_NAME,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_END_CAP_TYPE,
     DOMAIN,
+    END_CAP_FLAT,
 )
 
 
@@ -22,7 +25,7 @@ async def test_sensor_setup(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.fill_height", "12.0")
 
     # Create config entry
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
@@ -32,6 +35,7 @@ async def test_sensor_setup(hass: HomeAssistant) -> None:
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     with patch(
         "custom_components.tank_volume.async_setup_entry",
@@ -50,16 +54,18 @@ async def test_sensor_state_update(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.fill_height", "12.0")
 
     # Set up the integration
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_END_CAP_TYPE: END_CAP_FLAT,  # Use flat ends for simple testing
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -104,7 +110,7 @@ async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
     # Create source sensor with unavailable state
     hass.states.async_set("sensor.fill_height", STATE_UNAVAILABLE)
 
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
@@ -114,6 +120,7 @@ async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -136,7 +143,7 @@ async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
     # Create source sensor with unknown state
     hass.states.async_set("sensor.fill_height", STATE_UNKNOWN)
 
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
@@ -146,6 +153,7 @@ async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -167,7 +175,7 @@ async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
     # Create source sensor with non-numeric state
     hass.states.async_set("sensor.fill_height", "not_a_number")
 
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
@@ -177,6 +185,7 @@ async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -198,7 +207,7 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
 
     hass.states.async_set("sensor.fill_height", "12.0")
 
-    entry = hass.config_entries.async_entry(
+    entry = MockConfigEntry(
         domain=DOMAIN,
         title="Test Tank",
         data={
@@ -208,6 +217,7 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
         },
         unique_id="sensor.fill_height",
     )
+    entry.add_to_hass(hass)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
