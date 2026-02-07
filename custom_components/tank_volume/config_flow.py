@@ -65,12 +65,10 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
             
             if tank_capacity == CAPACITY_CUSTOM:
-                # For custom, user must provide diameter and we calculate length
-                # We need total length to calculate cylinder length
-                # For now, use diameter to estimate a reasonable total length
-                # User will need to adjust in options if needed
+                # For custom, user must provide diameter
+                # Estimate total length as 5x diameter (rough approximation)
+                # User can adjust via options if needed
                 diameter = user_input[CONF_TANK_DIAMETER]
-                # Estimate total length as 5x diameter for custom tanks
                 estimated_total_length = diameter * 5
                 cylinder_length = calculate_cylinder_length(
                     diameter, estimated_total_length, end_cap_type
@@ -98,14 +96,15 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
         # Determine default diameter based on capacity
-        default_capacity = DEFAULT_TANK_CAPACITY
         if user_input and CONF_TANK_CAPACITY in user_input:
             capacity = user_input[CONF_TANK_CAPACITY]
             if capacity != CAPACITY_CUSTOM:
                 default_diameter = TANK_SPECS[capacity]["diameter"]
             else:
                 default_diameter = user_input.get(CONF_TANK_DIAMETER, 37.5)
+            default_capacity = capacity
         else:
+            default_capacity = DEFAULT_TANK_CAPACITY
             default_diameter = TANK_SPECS[default_capacity]["diameter"]
 
         # Show form

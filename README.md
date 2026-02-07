@@ -148,53 +148,6 @@ Fill percentage:
 Fill % = [V_total(h) / V_capacity] × 100
 ```
 
-## Mathematical Background
-
-### Pure Cylinder (Flat Ends)
-
-For a horizontal cylinder with radius `r` and liquid fill height `h`:
-
-The cross-sectional area of liquid is a circular segment:
-```
-A(h) = r² · arccos((r - h) / r) - (r - h) · √(2rh - h²)
-```
-
-Volumetric fill percentage:
-```
-Fill % = [A(h) / (π · r²)] × 100
-```
-
-### Semi-Ellipsoidal Heads
-
-For a semi-ellipsoidal head with radius `r`, head depth `a`, and fill height `h`:
-
-Volume of liquid in one head:
-```
-V_head(h) = (π × a / (3 × r²)) × h² × (3r - h)
-```
-
-For 2:1 heads where `a = r/2`:
-```
-V_head(h) = (π × h² × (3r - h)) / (6 × r)
-```
-
-Total tank volume at height `h`:
-```
-V_total(h) = [Cylinder cross-section × L] + [2 × V_head(h)]
-```
-
-Where `L` is the cylinder length.
-
-Total capacity:
-```
-V_capacity = π × r² × L + 2 × [(2/3) × π × r² × a]
-```
-
-Fill percentage:
-```
-Fill % = [V_total(h) / V_capacity] × 100
-```
-
 ## Example Configurations
 
 ### Example 1: Standard 500 Gallon LP Tank
