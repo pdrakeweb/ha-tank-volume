@@ -1,13 +1,14 @@
 # Tank Volume Calculator for Home Assistant
 
-A Home Assistant custom integration that calculates the volumetric fill percentage of horizontal cylindrical tanks with optional semi-ellipsoidal (dished) end caps.
+A Home Assistant custom integration that calculates the volumetric fill percentage of horizontal cylindrical tanks with semi-ellipsoidal (dished) end caps - perfect for residential propane (LP) tanks.
 
 ## Features
 
+- **Standard LP Tank Presets**: Pre-configured settings for common 250, 330, 500, and 1000 gallon tanks
 - **Accurate Volume Calculation**: Converts linear fill height measurements to volumetric fill percentage
-- **Multiple Tank Geometries**: Supports flat ends (pure cylinder), standard 2:1 ellipsoidal heads, and custom ellipsoidal heads
+- **Ellipsoidal Head Support**: Accounts for standard 2:1 semi-ellipsoidal end caps found on most LP tanks
 - **Real-time Updates**: Automatically updates when source sensor changes
-- **Easy Configuration**: Simple UI-based setup through Home Assistant
+- **Easy Configuration**: Simple UI-based setup with smart defaults
 - **Flexible Units**: Works with any distance sensor (ultrasonic, pressure, etc.)
 
 ## Installation
@@ -38,13 +39,16 @@ A Home Assistant custom integration that calculates the volumetric fill percenta
 4. Fill in the configuration form:
    - **Name**: A friendly name for your tank
    - **Source sensor**: The entity that provides fill height in inches
-   - **Tank diameter**: The internal diameter of the tank in inches
+   - **Tank capacity**: Select your tank size:
+     - **250 gallon** (30" diameter, 92" total length)
+     - **330 gallon** (30" diameter, 120" total length)
+     - **500 gallon** (37.5" diameter, 120" total length)
+     - **1000 gallon** (41" diameter, 190" total length)
+     - **Custom** (specify your own diameter)
+   - **Tank diameter**: Auto-filled based on capacity selection (editable)
    - **End cap type**: Choose the geometry of your tank ends:
-     - **Flat (pure cylinder)**: No end caps - pure cylindrical tank (default)
-     - **2:1 Ellipsoidal**: Standard semi-ellipsoidal (2:1 ratio) dished heads
-     - **Custom Ellipsoidal**: Custom ellipsoidal heads with specific depth
-   - **Cylinder length**: Length of the cylindrical body section in inches (excluding end caps) - required for ellipsoidal heads
-   - **End cap depth**: Depth of each ellipsoidal head in inches - only for custom ellipsoidal type
+     - **Ellipsoidal (typical)**: Standard 2:1 semi-ellipsoidal heads (default - most LP tanks)
+     - **Flat**: Pure cylinder with no end caps
 
 ### Options
 
@@ -55,49 +59,94 @@ You can modify the tank parameters after setup:
 3. Click **Configure**
 4. Update the values as needed
 
+## Standard LP Tank Specifications
+
+Based on common residential propane tank dimensions:
+
+| Capacity | Diameter | Total Length | Cylinder Length* | Head Depth* |
+|----------|----------|--------------|------------------|-------------|
+| 250 gal  | 30"      | 92"          | 77"              | 7.5"        |
+| 330 gal  | 30"      | 120"         | 105"             | 7.5"        |
+| 500 gal  | 37.5"    | 120"         | 101.25"          | 9.375"      |
+| 1000 gal | 41"      | 190"         | 169.5"           | 10.25"      |
+
+*Calculated automatically for ellipsoidal heads (head depth = diameter ÷ 4)
+
 ## Tank Geometry Types
 
-### Flat (Pure Cylinder)
+### Ellipsoidal (Typical) - Default
 
-A simple horizontal cylinder with flat ends. This is the default and maintains backward compatibility.
+The most common type for residential and commercial LP tanks. These heads have a standard 2:1 elliptical ratio where the depth of each head is exactly 1/4 of the tank diameter.
 
 **Configuration:**
-- End cap type: `Flat (pure cylinder)`
-- Only tank diameter is needed
+- End cap type: `Ellipsoidal (typical)`
+- Cylinder length: Automatically calculated from tank capacity and diameter
+
+**How it works:**
+- For a 500 gallon tank (37.5" diameter, 120" total length):
+  - Each head depth: 9.375" (37.5 ÷ 4)
+  - Cylinder length: 101.25" (120 - 2 × 9.375)
+  - Total capacity includes both cylinder and head volumes
 
 **Use when:**
-- Your tank has flat ends
+- You have a standard residential LP tank (most common)
+- Your tank has rounded/dished ends
+- Tank manufacturer specs indicate "2:1 ellipsoidal heads"
+
+### Flat
+
+A simple horizontal cylinder with flat ends.
+
+**Configuration:**
+- End cap type: `Flat`
+- Works with any diameter
+
+**Use when:**
+- Your tank has flat ends (rare for LP tanks)
 - You want to measure a section of pipe
-- You're migrating from an earlier version
+- You're using a custom cylindrical tank
 
-### 2:1 Ellipsoidal Heads
+## Mathematical Background
 
-The most common type for commercial and industrial tanks. These heads have a standard 2:1 elliptical ratio where the depth of each head is exactly 1/4 of the tank diameter.
+### Pure Cylinder (Flat Ends)
 
-**Configuration:**
-- End cap type: `2:1 Ellipsoidal`
-- Cylinder length: Length of the straight cylindrical section (excluding the heads)
-- End cap depth: Automatically calculated as diameter ÷ 4
+For a horizontal cylinder with radius `r` and liquid fill height `h`:
 
-**Example:**
-For a 48-inch diameter tank with 96-inch cylinder length:
-- Diameter: 48 inches
-- Cylinder length: 96 inches
-- Each head depth: 12 inches (automatically calculated)
-- Total tank length: 96 + 12 + 12 = 120 inches
+The cross-sectional area of liquid is a circular segment:
+```
+A(h) = r² · arccos((r - h) / r) - (r - h) · √(2rh - h²)
+```
 
-### Custom Ellipsoidal Heads
+Volumetric fill percentage:
+```
+Fill % = [A(h) / (π · r²)] × 100
+```
 
-For tanks with non-standard ellipsoidal heads where you know the specific depth of each head.
+### Ellipsoidal Heads (2:1 Ratio)
 
-**Configuration:**
-- End cap type: `Custom Ellipsoidal`
-- Cylinder length: Length of the straight cylindrical section
-- End cap depth: The actual depth of each head in inches
+For a semi-ellipsoidal head with radius `r`, head depth `a = r/2`, and fill height `h`:
 
-**Use when:**
-- Your tank has non-standard ellipsoidal heads
-- You know the exact head depth from tank specifications
+Volume of liquid in one head:
+```
+V_head(h) = (π × h² × (3r - h)) / (6 × r)
+```
+
+Total tank volume at height `h`:
+```
+V_total(h) = [Cylinder cross-section × L] + [2 × V_head(h)]
+```
+
+Where `L` is the cylinder length (total length minus 2 × head depth).
+
+Total capacity:
+```
+V_capacity = π × r² × L + 2 × [(2/3) × π × r² × a]
+```
+
+Fill percentage:
+```
+Fill % = [V_total(h) / V_capacity] × 100
+```
 
 ## Mathematical Background
 
@@ -148,37 +197,38 @@ Fill % = [V_total(h) / V_capacity] × 100
 
 ## Example Configurations
 
-### Example 1: Simple Propane Tank (Flat Ends)
+### Example 1: Standard 500 Gallon LP Tank
 
 ```yaml
 Name: Propane Tank
 Source sensor: sensor.propane_ultrasonic_distance
-Tank diameter: 24
-End cap type: Flat (pure cylinder)
+Tank capacity: 500 gallon
+Tank diameter: 37.5  # Auto-filled
+End cap type: Ellipsoidal (typical)  # Default
 ```
 
-### Example 2: Industrial Tank (2:1 Ellipsoidal)
+The integration automatically calculates:
+- Cylinder length: 101.25" (120" total - 2 × 9.375" heads)
+- Head depth: 9.375" (37.5" ÷ 4)
+
+### Example 2: 250 Gallon LP Tank
 
 ```yaml
-Name: Water Storage Tank
-Source sensor: sensor.water_level
-Tank diameter: 60
-End cap type: 2:1 Ellipsoidal
-Cylinder length: 144
-# Head depth automatically = 15 inches (60/4)
-# Total length = 144 + 15 + 15 = 174 inches
+Name: Small Propane Tank
+Source sensor: sensor.small_tank_level
+Tank capacity: 250 gallon
+Tank diameter: 30  # Auto-filled
+End cap type: Ellipsoidal (typical)
 ```
 
-### Example 3: Custom Tank (Custom Ellipsoidal)
+### Example 3: Custom Tank with Flat Ends
 
 ```yaml
-Name: Custom Fuel Tank
-Source sensor: sensor.fuel_level
+Name: Custom Cylindrical Tank
+Source sensor: sensor.custom_tank_level
+Tank capacity: Custom
 Tank diameter: 48
-End cap type: Custom Ellipsoidal
-Cylinder length: 96
-End cap depth: 10
-# Total length = 96 + 10 + 10 = 116 inches
+End cap type: Flat
 ```
 
 ## Source Sensor Requirements
@@ -198,17 +248,17 @@ The sensor exposes the following attributes:
 - `source_entity`: The entity ID of the source sensor
 - `tank_diameter_inches`: Tank diameter in inches
 - `fill_height_inches`: Current fill height in inches
-- `end_cap_type`: Type of end caps (flat, ellipsoidal_2_1, or ellipsoidal_custom)
+- `end_cap_type`: Type of end caps (flat or ellipsoidal_2_1)
 - `cylinder_length_inches`: Length of cylindrical section (if applicable)
-- `end_cap_depth_inches`: Depth of end caps (if applicable)
 
 ## Troubleshooting
 
 ### Incorrect Volume Readings
 
-1. **Verify tank dimensions**: Double-check diameter, length, and head depth
-2. **Check source sensor**: Ensure it provides accurate fill height in inches
-3. **Confirm end cap type**: Make sure you selected the correct geometry for your tank
+1. **Verify tank capacity selection**: Ensure you selected the correct gallon size for your tank
+2. **Check diameter**: If using custom, verify the diameter matches your tank
+3. **Check source sensor**: Ensure it provides accurate fill height in inches
+4. **Confirm end cap type**: Most LP tanks have ellipsoidal heads, not flat
 
 ### Sensor Shows "Unknown" or "Unavailable"
 
@@ -221,7 +271,8 @@ The sensor exposes the following attributes:
 1. **Compare with known levels**: Fill tank to 25%, 50%, 75% and verify readings
 2. **For ellipsoidal heads**: Remember that fill percentage is NOT linear with height
    - At 50% height, volume will be less than 50% due to head shape
-3. **Verify cylinder length**: For tanks with heads, ensure cylinder length excludes head depths
+   - This is normal and expected behavior
+3. **Check capacity preset**: Verify you selected the correct tank size (250, 330, 500, 1000 gal)
 
 ## Contributing
 
@@ -241,4 +292,4 @@ If you encounter any issues or have questions:
 
 ## Credits
 
-Developed for the Home Assistant community to provide accurate tank volume calculations for various industrial and residential applications.
+Developed for the Home Assistant community to provide accurate tank volume calculations for residential propane tanks and other horizontal cylindrical vessels.
