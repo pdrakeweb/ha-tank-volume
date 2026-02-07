@@ -166,7 +166,7 @@ def test_tank_with_heads_flat():
     fill_height = 12  # Half full
     
     result = compute_tank_volume_with_heads(
-        fill_height, diameter, cylinder_length, "flat", None
+        fill_height, diameter, cylinder_length, "flat"
     )
     
     # Should match pure cylinder calculation
@@ -179,7 +179,7 @@ def test_tank_with_heads_flat():
 def test_tank_with_heads_2_1_ellipsoidal_empty():
     """Test tank with 2:1 ellipsoidal heads at h = 0."""
     result = compute_tank_volume_with_heads(
-        0, 48, 96, "ellipsoidal_2_1", None
+        0, 48, 96, "ellipsoidal_2_1"
     )
     assert result == 0.0
 
@@ -187,7 +187,7 @@ def test_tank_with_heads_2_1_ellipsoidal_empty():
 def test_tank_with_heads_2_1_ellipsoidal_full():
     """Test tank with 2:1 ellipsoidal heads at h = diameter."""
     result = compute_tank_volume_with_heads(
-        48, 48, 96, "ellipsoidal_2_1", None
+        48, 48, 96, "ellipsoidal_2_1"
     )
     assert result == 100.0
 
@@ -199,7 +199,7 @@ def test_tank_with_heads_2_1_ellipsoidal_half():
     fill_height = diameter / 2  # 24 inches
     
     result = compute_tank_volume_with_heads(
-        fill_height, diameter, cylinder_length, "ellipsoidal_2_1", None
+        fill_height, diameter, cylinder_length, "ellipsoidal_2_1"
     )
     
     assert result is not None
@@ -208,33 +208,10 @@ def test_tank_with_heads_2_1_ellipsoidal_half():
     assert 40.0 < result < 50.0
 
 
-def test_tank_with_heads_custom_ellipsoidal():
-    """Test tank with custom ellipsoidal heads."""
-    diameter = 48
-    cylinder_length = 96
-    fill_height = 24
-    custom_depth = 8
-    
-    result = compute_tank_volume_with_heads(
-        fill_height, diameter, cylinder_length, "ellipsoidal_custom", custom_depth
-    )
-    
-    assert result is not None
-    assert 0.0 < result < 100.0
-
-
-def test_tank_with_heads_custom_ellipsoidal_no_depth():
-    """Test tank with custom ellipsoidal heads but no depth specified."""
-    result = compute_tank_volume_with_heads(
-        24, 48, 96, "ellipsoidal_custom", None
-    )
-    assert result is None  # Should return None without depth
-
-
 def test_tank_with_heads_invalid_diameter():
     """Test tank with heads with invalid diameter."""
     result = compute_tank_volume_with_heads(
-        24, 0, 96, "ellipsoidal_2_1", None
+        24, 0, 96, "ellipsoidal_2_1"
     )
     assert result is None
 
@@ -242,7 +219,7 @@ def test_tank_with_heads_invalid_diameter():
 def test_tank_with_heads_invalid_length():
     """Test tank with heads with invalid cylinder length."""
     result = compute_tank_volume_with_heads(
-        24, 48, 0, "ellipsoidal_2_1", None
+        24, 48, 0, "ellipsoidal_2_1"
     )
     assert result is None
 
@@ -250,7 +227,7 @@ def test_tank_with_heads_invalid_length():
 def test_tank_with_heads_negative_height():
     """Test tank with heads with negative fill height (should clamp to 0%)."""
     result = compute_tank_volume_with_heads(
-        -5, 48, 96, "ellipsoidal_2_1", None
+        -5, 48, 96, "ellipsoidal_2_1"
     )
     assert result == 0.0
 
@@ -258,7 +235,7 @@ def test_tank_with_heads_negative_height():
 def test_tank_with_heads_height_exceeds_diameter():
     """Test tank with heads when height exceeds diameter (should clamp to 100%)."""
     result = compute_tank_volume_with_heads(
-        60, 48, 96, "ellipsoidal_2_1", None
+        60, 48, 96, "ellipsoidal_2_1"
     )
     assert result == 100.0
 
@@ -273,7 +250,7 @@ def test_tank_with_heads_various_heights():
     for height_fraction in [0.1, 0.25, 0.5, 0.75, 0.9]:
         fill_height = diameter * height_fraction
         result = compute_tank_volume_with_heads(
-            fill_height, diameter, cylinder_length, "ellipsoidal_2_1", None
+            fill_height, diameter, cylinder_length, "ellipsoidal_2_1"
         )
         assert result is not None
         assert result > previous_percentage  # Should increase monotonically
@@ -290,7 +267,7 @@ def test_backward_compatibility_flat_caps():
     
     # Tank with flat heads and cylinder length = diameter (equivalent to pure cylinder)
     with_flat_heads = compute_tank_volume_with_heads(
-        fill_height, diameter, diameter, "flat", None
+        fill_height, diameter, diameter, "flat"
     )
     
     assert pure_cylinder is not None

@@ -19,13 +19,11 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_CYLINDER_LENGTH,
-    CONF_END_CAP_DEPTH,
     CONF_END_CAP_TYPE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
-    END_CAP_ELLIPSOIDAL_CUSTOM,
     END_CAP_FLAT,
 )
 
@@ -127,7 +125,6 @@ def compute_tank_volume_with_heads(
     diameter: float,
     cylinder_length: float,
     end_cap_type: str = END_CAP_FLAT,
-    end_cap_depth: float | None = None,
 ) -> float | None:
     """
     Calculate volumetric fill percentage for horizontal tank with optional ellipsoidal heads.
@@ -136,8 +133,7 @@ def compute_tank_volume_with_heads(
         fill_height: Liquid fill height in inches
         diameter: Tank diameter in inches
         cylinder_length: Length of cylindrical section in inches
-        end_cap_type: "flat", "ellipsoidal_2_1", or "ellipsoidal_custom"
-        end_cap_depth: Depth of custom ellipsoidal head (only for "ellipsoidal_custom")
+        end_cap_type: "flat" or "ellipsoidal_2_1"
 
     Returns:
         Fill percentage (0-100) or None if invalid
@@ -180,12 +176,6 @@ def compute_tank_volume_with_heads(
             head_depth = r / 2.0  # For 2:1 ratio, depth = diameter/4 = radius/2
             head_volume = 2.0 * compute_ellipsoidal_head_volume(h, r, head_depth)
             total_head_volume = 2.0 * (2.0 / 3.0) * math.pi * r * r * head_depth
-        elif end_cap_type == END_CAP_ELLIPSOIDAL_CUSTOM:
-            # Custom ellipsoidal heads
-            if end_cap_depth is None or end_cap_depth <= 0:
-                return None
-            head_volume = 2.0 * compute_ellipsoidal_head_volume(h, r, end_cap_depth)
-            total_head_volume = 2.0 * (2.0 / 3.0) * math.pi * r * r * end_cap_depth
         else:
             return None
 
@@ -216,15 +206,12 @@ async def async_setup_entry(
     )
     name = config_entry.data[CONF_NAME]
 
-    # Get end cap configuration (with backward compatibility)
+    # Get end cap configuration
     end_cap_type = config_entry.options.get(
-        CONF_END_CAP_TYPE, config_entry.data.get(CONF_END_CAP_TYPE, END_CAP_FLAT)
+        CONF_END_CAP_TYPE, config_entry.data.get(CONF_END_CAP_TYPE, END_CAP_ELLIPSOIDAL_2_1)
     )
     cylinder_length = config_entry.options.get(
         CONF_CYLINDER_LENGTH, config_entry.data.get(CONF_CYLINDER_LENGTH)
-    )
-    end_cap_depth = config_entry.options.get(
-        CONF_END_CAP_DEPTH, config_entry.data.get(CONF_END_CAP_DEPTH)
     )
 
     sensor = TankVolumeSensor(
@@ -234,7 +221,6 @@ async def async_setup_entry(
         tank_diameter,
         end_cap_type,
         cylinder_length,
-        end_cap_depth,
     )
 
     async_add_entities([sensor], True)
@@ -255,9 +241,8 @@ class TankVolumeSensor(SensorEntity):
         name: str,
         source_entity: str,
         tank_diameter: float,
-        end_cap_type: str = END_CAP_FLAT,
+        end_cap_type: str = END_CAP_ELLIPSOIDAL_2_1,
         cylinder_length: float | None = None,
-        end_cap_depth: float | None = None,
     ) -> None:
         """Initialize the sensor."""
         self._entry_id = entry_id
@@ -266,7 +251,6 @@ class TankVolumeSensor(SensorEntity):
         self._tank_diameter = tank_diameter
         self._end_cap_type = end_cap_type
         self._cylinder_length = cylinder_length
-        self._end_cap_depth = end_cap_depth
         self._fill_height: float | None = None
         self._attr_unique_id = f"{entry_id}_volume_percentage"
 
@@ -292,8 +276,6 @@ class TankVolumeSensor(SensorEntity):
         }
         if self._cylinder_length is not None:
             attrs["cylinder_length_inches"] = self._cylinder_length
-        if self._end_cap_depth is not None:
-            attrs["end_cap_depth_inches"] = self._end_cap_depth
         return attrs
 
     async def async_added_to_hass(self) -> None:
@@ -336,19 +318,18 @@ class TankVolumeSensor(SensorEntity):
 
             # Calculate volume percentage based on end cap configuration
             if self._end_cap_type == END_CAP_FLAT:
-                # Backward compatible: pure cylinder calculation
+                # Pure cylinder calculation (flat ends)
                 percentage = compute_horizontal_cylinder_volume_percentage(
                     fill_height, self._tank_diameter
                 )
             else:
-                # Use cylinder length or default to diameter for backward compatibility
+                # Use cylinder length for tank with ellipsoidal heads
                 cylinder_length = self._cylinder_length or self._tank_diameter
                 percentage = compute_tank_volume_with_heads(
                     fill_height,
                     self._tank_diameter,
                     cylinder_length,
                     self._end_cap_type,
-                    self._end_cap_depth,
                 )
 
             self._attr_native_value = percentage
