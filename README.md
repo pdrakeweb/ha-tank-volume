@@ -231,6 +231,53 @@ The sensor exposes the following attributes:
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Development
+
+This repository includes a devcontainer configuration for easy development with Visual Studio Code.
+
+### Using the Devcontainer
+
+1. Install [Docker](https://www.docker.com/products/docker-desktop) and [Visual Studio Code](https://code.visualstudio.com/)
+2. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) in VS Code
+3. Clone this repository and open it in VS Code
+4. When prompted, click "Reopen in Container" (or use Command Palette: "Dev Containers: Reopen in Container")
+5. The container will build automatically and install all dependencies
+
+### Available VS Code Tasks
+
+Once inside the devcontainer, you can run various tasks from the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
+
+- **Run Tests**: Execute the test suite with pytest
+- **Run Tests with Coverage**: Run tests and display code coverage report
+- **Lint with Flake8**: Check code style and quality
+- **Setup: Install Test Dependencies**: Install testing requirements
+- **Setup: Install Home Assistant**: Install Home Assistant core
+
+To run a task:
+1. Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+2. Type "Tasks: Run Task"
+3. Select the desired task from the list
+
+### Running Tests Manually
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=custom_components/tank_volume --cov-report=term-missing -v
+
+# Run a specific test file
+pytest tests/test_sensor.py -v
+```
+
+### Linting
+
+```bash
+# Check code style
+flake8 custom_components/tank_volume/ tests/
+```
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
