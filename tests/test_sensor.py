@@ -9,11 +9,12 @@ from custom_components.tank_volume.const import (
     CONF_NAME,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_TEMPERATURE_ENTITY,
     DOMAIN,
     END_CAP_FLAT,
 )
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
@@ -235,3 +236,52 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
     assert state.attributes["tank_diameter_inches"] == 24.0
     assert "fill_height_inches" in state.attributes
     assert state.attributes["fill_height_inches"] == 12.0
+
+
+async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -> None:
+    """Test sensor applies temperature compensation for Fahrenheit."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+
+    hass.states.async_set("sensor.fill_height", "12.0")
+    hass.states.async_set(
+        "sensor.lp_temp",
+        "80.0",
+        {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Test Tank",
+        data={
+            CONF_NAME: "Test Tank",
+            CONF_SOURCE_ENTITY: "sensor.fill_height",
+            CONF_TANK_DIAMETER: 24.0,
+            CONF_TEMPERATURE_ENTITY: "sensor.lp_temp",
+            CONF_END_CAP_TYPE: END_CAP_FLAT,
+        },
+        unique_id="sensor.fill_height",
+    )
+    entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    assert len(entities) == 2
+
+    base_entity = next(entity for entity in entities if entity.unique_id.endswith("_volume_percentage"))
+    adjusted_entity = next(
+        entity for entity in entities if entity.unique_id.endswith("_volume_percentage_temp_adjusted")
+    )
+
+    base_state = hass.states.get(base_entity.entity_id)
+    assert base_state is not None
+    base_value = float(base_state.state)
+    assert abs(base_value - 50.0) < 0.1
+
+    adjusted_state = hass.states.get(adjusted_entity.entity_id)
+    assert adjusted_state is not None
+    adjusted_value = float(adjusted_state.state)
+
+    assert abs(adjusted_value - (50.0 / 1.03)) < 0.1

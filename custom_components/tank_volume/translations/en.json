@@ -7,9 +7,13 @@
         "data": {
           "name": "Name",
           "source_entity": "Source sensor (fill height in inches)",
+          "temperature_entity": "Temperature sensor (optional)",
           "tank_capacity": "Tank capacity",
           "tank_diameter": "Tank diameter (inches)",
           "end_cap_type": "End cap type"
+        },
+        "data_description": {
+          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
         }
       }
     },
@@ -24,7 +28,11 @@
         "data": {
           "tank_capacity": "Tank capacity",
           "tank_diameter": "Tank diameter (inches)",
-          "end_cap_type": "End cap type"
+          "end_cap_type": "End cap type",
+          "temperature_entity": "Temperature sensor (optional)"
+        },
+        "data_description": {
+          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
         }
       }
     },

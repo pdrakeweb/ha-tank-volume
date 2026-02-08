@@ -23,6 +23,7 @@ from .const import (
     CONF_SOURCE_ENTITY,
     CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
+    CONF_TEMPERATURE_ENTITY,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
     DEFAULT_TANK_CAPACITY,
@@ -106,6 +107,9 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
                 vol.Required(CONF_SOURCE_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
                 vol.Required(CONF_TANK_CAPACITY, default=default_capacity): selector.SelectSelector(
@@ -195,6 +199,24 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_END_CAP_TYPE,
             self.config_entry.data.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE),
         )
+        current_temperature_entity = self.config_entry.options.get(
+            CONF_TEMPERATURE_ENTITY,
+            self.config_entry.data.get(CONF_TEMPERATURE_ENTITY),
+        )
+
+        temperature_selector: dict[vol.Marker, selector.Selector] = {}
+        if current_temperature_entity:
+            temperature_selector = {
+                vol.Optional(CONF_TEMPERATURE_ENTITY, default=current_temperature_entity): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                )
+            }
+        else:
+            temperature_selector = {
+                vol.Optional(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                )
+            }
 
         data_schema = vol.Schema(
             {
@@ -220,6 +242,7 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                **temperature_selector,
             }
         )
 

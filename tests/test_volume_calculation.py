@@ -6,7 +6,9 @@ from custom_components.tank_volume.sensor import (
     compute_ellipsoidal_head_volume,
     compute_horizontal_cylinder_volume_percentage,
     compute_tank_volume_with_heads,
+    compute_temperature_compensated_percentage,
 )
+from homeassistant.const import UnitOfTemperature
 
 
 def test_volume_calculation_empty():
@@ -252,3 +254,29 @@ def test_backward_compatibility_flat_caps():
     assert pure_cylinder is not None
     assert with_flat_heads is not None
     assert abs(pure_cylinder - with_flat_heads) < 0.01
+
+
+def test_temperature_compensation_fahrenheit():
+    """Test temperature compensation using Fahrenheit reference."""
+    base_percentage = 50.0
+    adjusted = compute_temperature_compensated_percentage(
+        base_percentage,
+        80.0,
+        UnitOfTemperature.FAHRENHEIT,
+    )
+
+    assert adjusted is not None
+    assert abs(adjusted - (50.0 / 1.03)) < 0.01
+
+
+def test_temperature_compensation_celsius():
+    """Test temperature compensation using Celsius reference."""
+    base_percentage = 50.0
+    adjusted = compute_temperature_compensated_percentage(
+        base_percentage,
+        30.0,
+        UnitOfTemperature.CELSIUS,
+    )
+
+    assert adjusted is not None
+    assert abs(adjusted - 49.41) < 0.05

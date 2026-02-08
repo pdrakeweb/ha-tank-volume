@@ -8,7 +8,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, PERCENTAGE
+from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, CONF_NAME, PERCENTAGE, UnitOfTemperature
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -19,9 +19,14 @@ from .const import (
     CONF_END_CAP_TYPE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_TEMPERATURE_ENTITY,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
     END_CAP_FLAT,
+    PROPANE_EXPANSION_COEFFICIENT_C,
+    PROPANE_EXPANSION_COEFFICIENT_F,
+    REFERENCE_TEMPERATURE_C,
+    REFERENCE_TEMPERATURE_F,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -184,6 +189,29 @@ def compute_tank_volume_with_heads(
         return (total_volume / total_capacity) * 100.0
 
 
+def compute_temperature_compensated_percentage(
+    volume_percentage: float,
+    temperature: float,
+    unit: UnitOfTemperature,
+) -> float | None:
+    """Adjust volume percentage to reference temperature using propane expansion."""
+    if unit == UnitOfTemperature.FAHRENHEIT:
+        reference_temperature = REFERENCE_TEMPERATURE_F
+        coefficient = PROPANE_EXPANSION_COEFFICIENT_F
+    elif unit == UnitOfTemperature.CELSIUS:
+        reference_temperature = REFERENCE_TEMPERATURE_C
+        coefficient = PROPANE_EXPANSION_COEFFICIENT_C
+    else:
+        return None
+
+    adjustment_factor = 1.0 + (temperature - reference_temperature) * coefficient
+    if adjustment_factor <= 0.0:
+        return None
+
+    adjusted_percentage = volume_percentage / adjustment_factor
+    return max(0.0, min(100.0, adjusted_percentage))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -193,6 +221,10 @@ async def async_setup_entry(
     source_entity = config_entry.data[CONF_SOURCE_ENTITY]
     tank_diameter = config_entry.options.get(CONF_TANK_DIAMETER, config_entry.data[CONF_TANK_DIAMETER])
     name = config_entry.data[CONF_NAME]
+    temperature_entity = config_entry.options.get(
+        CONF_TEMPERATURE_ENTITY,
+        config_entry.data.get(CONF_TEMPERATURE_ENTITY),
+    )
 
     # Get end cap configuration
     end_cap_type = config_entry.options.get(
@@ -200,16 +232,36 @@ async def async_setup_entry(
     )
     cylinder_length = config_entry.options.get(CONF_CYLINDER_LENGTH, config_entry.data.get(CONF_CYLINDER_LENGTH))
 
-    sensor = TankVolumeSensor(
-        config_entry.entry_id,
-        name,
-        source_entity,
-        tank_diameter,
-        end_cap_type,
-        cylinder_length,
-    )
+    sensors: list[TankVolumeSensor] = [
+        TankVolumeSensor(
+            config_entry.entry_id,
+            name,
+            name,
+            source_entity,
+            None,
+            tank_diameter,
+            end_cap_type,
+            cylinder_length,
+            apply_temperature_compensation=False,
+        )
+    ]
 
-    async_add_entities([sensor], True)
+    if temperature_entity:
+        sensors.append(
+            TankVolumeSensor(
+                config_entry.entry_id,
+                name,
+                f"{name} (temperature adjusted)",
+                source_entity,
+                temperature_entity,
+                tank_diameter,
+                end_cap_type,
+                cylinder_length,
+                apply_temperature_compensation=True,
+            )
+        )
+
+    async_add_entities(sensors, True)
 
 
 class TankVolumeSensor(SensorEntity):
@@ -224,28 +276,39 @@ class TankVolumeSensor(SensorEntity):
     def __init__(
         self,
         entry_id: str,
+        device_name: str,
         name: str,
         source_entity: str,
+        temperature_entity: str | None,
         tank_diameter: float,
         end_cap_type: str = END_CAP_ELLIPSOIDAL_2_1,
         cylinder_length: float | None = None,
+        apply_temperature_compensation: bool = False,
     ) -> None:
         """Initialize the sensor."""
         self._entry_id = entry_id
         self._attr_name = name
+        self._device_name = device_name
         self._source_entity = source_entity
+        self._temperature_entity = temperature_entity
+        self._apply_temperature_compensation = apply_temperature_compensation
         self._tank_diameter = tank_diameter
         self._end_cap_type = end_cap_type
         self._cylinder_length = cylinder_length
         self._fill_height: float | None = None
-        self._attr_unique_id = f"{entry_id}_volume_percentage"
+        self._temperature_value: float | None = None
+        self._temperature_unit: UnitOfTemperature | None = None
+        unique_suffix = "volume_percentage"
+        if self._apply_temperature_compensation:
+            unique_suffix = "volume_percentage_temp_adjusted"
+        self._attr_unique_id = f"{entry_id}_{unique_suffix}"
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this entity."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._entry_id)},
-            name=self._attr_name,
+            name=self._device_name,
             manufacturer="Tank Volume Calculator",
             model="Horizontal Cylinder",
             entry_type=None,
@@ -260,6 +323,13 @@ class TankVolumeSensor(SensorEntity):
             "fill_height_inches": self._fill_height,
             "end_cap_type": self._end_cap_type,
         }
+        if self._temperature_entity is not None:
+            attrs["temperature_entity"] = self._temperature_entity
+        if self._temperature_value is not None and self._temperature_unit is not None:
+            attrs["temperature_value"] = self._temperature_value
+            attrs["temperature_unit"] = self._temperature_unit
+        if self._apply_temperature_compensation:
+            attrs["temperature_adjusted"] = True
         if self._cylinder_length is not None:
             attrs["cylinder_length_inches"] = self._cylinder_length
         return attrs
@@ -272,10 +342,16 @@ class TankVolumeSensor(SensorEntity):
         if (state := self.hass.states.get(self._source_entity)) is not None:
             self._handle_source_state(state.state)
 
+        if self._temperature_entity and (state := self.hass.states.get(self._temperature_entity)) is not None:
+            self._handle_temperature_state(state)
+            self._recalculate_volume()
+
         # Track state changes
-        self.async_on_remove(
-            async_track_state_change_event(self.hass, [self._source_entity], self._async_source_changed)
-        )
+        entities_to_track = [self._source_entity]
+        if self._temperature_entity:
+            entities_to_track.append(self._temperature_entity)
+
+        self.async_on_remove(async_track_state_change_event(self.hass, entities_to_track, self._async_source_changed))
 
     @callback
     def _async_source_changed(self, event: Event) -> None:
@@ -284,7 +360,11 @@ class TankVolumeSensor(SensorEntity):
         if new_state is None:
             return
 
-        self._handle_source_state(new_state.state)
+        if new_state.entity_id == self._source_entity:
+            self._handle_source_state(new_state.state)
+        elif self._temperature_entity and new_state.entity_id == self._temperature_entity:
+            self._handle_temperature_state(new_state)
+            self._recalculate_volume()
         self.async_write_ha_state()
 
     def _handle_source_state(self, state_value: str) -> None:
@@ -300,22 +380,60 @@ class TankVolumeSensor(SensorEntity):
             fill_height = float(state_value)
             self._fill_height = fill_height
 
-            # Calculate volume percentage based on end cap configuration
-            if self._end_cap_type == END_CAP_FLAT:
-                # Pure cylinder calculation (flat ends)
-                percentage = compute_horizontal_cylinder_volume_percentage(fill_height, self._tank_diameter)
-            else:
-                # Use cylinder length for tank with ellipsoidal heads
-                cylinder_length = self._cylinder_length or self._tank_diameter
-                percentage = compute_tank_volume_with_heads(
-                    fill_height,
-                    self._tank_diameter,
-                    cylinder_length,
-                    self._end_cap_type,
-                )
-
-            self._attr_native_value = percentage
+            self._recalculate_volume()
         except (ValueError, TypeError):
             _LOGGER.warning("Unable to parse source entity state '%s' as a number", state_value)
             self._attr_native_value = None
             self._fill_height = None
+
+    def _handle_temperature_state(self, state: Any) -> None:
+        """Handle temperature entity state and unit."""
+        if state.state in ("unknown", "unavailable", None):
+            self._temperature_value = None
+            self._temperature_unit = None
+            return
+
+        unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+        if unit not in (UnitOfTemperature.FAHRENHEIT, UnitOfTemperature.CELSIUS):
+            self._temperature_value = None
+            self._temperature_unit = None
+            return
+
+        try:
+            self._temperature_value = float(state.state)
+            self._temperature_unit = UnitOfTemperature(unit)
+        except (ValueError, TypeError):
+            self._temperature_value = None
+            self._temperature_unit = None
+
+    def _recalculate_volume(self) -> None:
+        """Recalculate volume percentage using current fill height and temperature."""
+        if self._fill_height is None:
+            self._attr_native_value = None
+            return
+
+        if self._end_cap_type == END_CAP_FLAT:
+            percentage = compute_horizontal_cylinder_volume_percentage(self._fill_height, self._tank_diameter)
+        else:
+            cylinder_length = self._cylinder_length or self._tank_diameter
+            percentage = compute_tank_volume_with_heads(
+                self._fill_height,
+                self._tank_diameter,
+                cylinder_length,
+                self._end_cap_type,
+            )
+
+        if percentage is None:
+            self._attr_native_value = None
+            return
+
+        if self._apply_temperature_compensation and self._temperature_value is not None and self._temperature_unit:
+            adjusted = compute_temperature_compensated_percentage(
+                percentage,
+                self._temperature_value,
+                self._temperature_unit,
+            )
+            self._attr_native_value = adjusted if adjusted is not None else percentage
+            return
+
+        self._attr_native_value = percentage
