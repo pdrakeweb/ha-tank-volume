@@ -19,6 +19,8 @@ from .const import (
     CONF_END_CAP_TYPE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_TANK_TOTAL_LENGTH,
+    CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
@@ -220,6 +222,11 @@ async def async_setup_entry(
     """Set up the Tank Volume Calculator sensor from a config entry."""
     source_entity = config_entry.data[CONF_SOURCE_ENTITY]
     tank_diameter = config_entry.options.get(CONF_TANK_DIAMETER, config_entry.data[CONF_TANK_DIAMETER])
+    tank_total_length = config_entry.options.get(
+        CONF_TANK_TOTAL_LENGTH,
+        config_entry.data.get(CONF_TANK_TOTAL_LENGTH),
+    )
+    tank_volume = config_entry.options.get(CONF_TANK_VOLUME, config_entry.data.get(CONF_TANK_VOLUME))
     name = config_entry.data[CONF_NAME]
     temperature_entity = config_entry.options.get(
         CONF_TEMPERATURE_ENTITY,
@@ -240,6 +247,8 @@ async def async_setup_entry(
             source_entity,
             None,
             tank_diameter,
+            tank_total_length,
+            tank_volume,
             end_cap_type,
             cylinder_length,
             apply_temperature_compensation=False,
@@ -255,6 +264,8 @@ async def async_setup_entry(
                 source_entity,
                 temperature_entity,
                 tank_diameter,
+                tank_total_length,
+                tank_volume,
                 end_cap_type,
                 cylinder_length,
                 apply_temperature_compensation=True,
@@ -281,6 +292,8 @@ class TankVolumeSensor(SensorEntity):
         source_entity: str,
         temperature_entity: str | None,
         tank_diameter: float,
+        tank_total_length: float | None,
+        tank_volume: float | None,
         end_cap_type: str = END_CAP_ELLIPSOIDAL_2_1,
         cylinder_length: float | None = None,
         apply_temperature_compensation: bool = False,
@@ -293,6 +306,8 @@ class TankVolumeSensor(SensorEntity):
         self._temperature_entity = temperature_entity
         self._apply_temperature_compensation = apply_temperature_compensation
         self._tank_diameter = tank_diameter
+        self._tank_total_length = tank_total_length
+        self._tank_volume = tank_volume
         self._end_cap_type = end_cap_type
         self._cylinder_length = cylinder_length
         self._fill_height: float | None = None
@@ -320,6 +335,8 @@ class TankVolumeSensor(SensorEntity):
         attrs = {
             "source_entity": self._source_entity,
             "tank_diameter_inches": self._tank_diameter,
+            "tank_total_length_inches": self._tank_total_length,
+            "tank_volume_gallons": self._tank_volume,
             "fill_height_inches": self._fill_height,
             "end_cap_type": self._end_cap_type,
         }

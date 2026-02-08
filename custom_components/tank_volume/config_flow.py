@@ -23,6 +23,8 @@ from .const import (
     CONF_SOURCE_ENTITY,
     CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
+    CONF_TANK_TOTAL_LENGTH,
+    CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
@@ -45,6 +47,72 @@ def calculate_cylinder_length(diameter: float, total_length: float, end_cap_type
     return total_length
 
 
+def _get_details_defaults(
+    tank_capacity: str,
+    user_input: dict[str, Any] | None = None,
+    existing_values: dict[str, Any] | None = None,
+) -> dict[str, float | None]:
+    defaults: dict[str, float | None]
+    if tank_capacity != CAPACITY_CUSTOM:
+        specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
+        defaults = {
+            CONF_TANK_DIAMETER: specs["diameter"],
+            CONF_TANK_TOTAL_LENGTH: specs["total_length"],
+            CONF_TANK_VOLUME: float(tank_capacity),
+        }
+    else:
+        defaults = {
+            CONF_TANK_DIAMETER: None,
+            CONF_TANK_TOTAL_LENGTH: None,
+            CONF_TANK_VOLUME: None,
+        }
+
+    if existing_values and tank_capacity == CAPACITY_CUSTOM:
+        for key in (CONF_TANK_DIAMETER, CONF_TANK_TOTAL_LENGTH, CONF_TANK_VOLUME):
+            if key in existing_values and existing_values[key] is not None:
+                defaults[key] = existing_values[key]
+
+    if user_input:
+        for key in (CONF_TANK_DIAMETER, CONF_TANK_TOTAL_LENGTH, CONF_TANK_VOLUME):
+            if key in user_input:
+                defaults[key] = user_input[key]
+
+    return defaults
+
+
+def _build_details_schema(
+    diameter_default: float | None,
+    total_length_default: float | None,
+    volume_default: float | None,
+    read_only: bool,
+) -> vol.Schema:
+    schema_fields: dict[vol.Marker, Any] = {}
+
+    number_selector = selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            mode=selector.NumberSelectorMode.BOX,
+            read_only=read_only,
+        )
+    )
+
+    if diameter_default is None:
+        schema_fields[vol.Required(CONF_TANK_DIAMETER)] = number_selector
+    else:
+        schema_fields[vol.Required(CONF_TANK_DIAMETER, default=diameter_default)] = number_selector
+
+    if total_length_default is None:
+        schema_fields[vol.Required(CONF_TANK_TOTAL_LENGTH)] = number_selector
+    else:
+        schema_fields[vol.Required(CONF_TANK_TOTAL_LENGTH, default=total_length_default)] = number_selector
+
+    if volume_default is None:
+        schema_fields[vol.Required(CONF_TANK_VOLUME)] = number_selector
+    else:
+        schema_fields[vol.Required(CONF_TANK_VOLUME, default=volume_default)] = number_selector
+
+    return vol.Schema(schema_fields)
+
+
 class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tank Volume Calculator."""
 
@@ -55,52 +123,15 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
+            user_input[CONF_TANK_CAPACITY] = tank_capacity
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
+            user_input.setdefault(CONF_END_CAP_TYPE, end_cap_type)
 
-            if tank_capacity == CAPACITY_CUSTOM:
-                # For custom, user must provide diameter.
-                # Estimate total length as 5x diameter (rough approximation).
-                diameter = user_input[CONF_TANK_DIAMETER]
-                estimated_total_length = diameter * 5
-                cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
-            else:
-                # Use standard specs and override diameter to match selection.
-                specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
-                diameter = specs["diameter"]
-                user_input[CONF_TANK_DIAMETER] = diameter
-                total_length = specs["total_length"]
-                cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+            self._user_input = user_input
+            return await self.async_step_details()
 
-            # Validate tank diameter
-            if diameter <= 0:
-                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-
-            # Store calculated cylinder length
-            user_input[CONF_CYLINDER_LENGTH] = cylinder_length
-
-            if not errors:
-                # Create unique ID based on source entity
-                await self.async_set_unique_id(user_input[CONF_SOURCE_ENTITY])
-                self._abort_if_unique_id_configured()
-
-                return self.async_create_entry(
-                    title=user_input[CONF_NAME],
-                    data=user_input,
-                )
-
-        # Determine default diameter based on capacity
-        if user_input and CONF_TANK_CAPACITY in user_input:
-            capacity = user_input[CONF_TANK_CAPACITY]
-            if capacity != CAPACITY_CUSTOM:
-                default_diameter = TANK_SPECS[capacity]["diameter"]
-            else:
-                default_diameter = user_input.get(CONF_TANK_DIAMETER, 37.5)
-            default_capacity = capacity
-        else:
-            default_capacity = DEFAULT_TANK_CAPACITY
-            default_diameter = TANK_SPECS[default_capacity]["diameter"]
+        default_capacity = DEFAULT_TANK_CAPACITY
 
         # Show form
         data_schema = vol.Schema(
@@ -124,7 +155,6 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
-                vol.Required(CONF_TANK_DIAMETER, default=default_diameter): vol.Coerce(float),
                 vol.Optional(CONF_END_CAP_TYPE, default=DEFAULT_END_CAP_TYPE): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
@@ -139,6 +169,60 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_details(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle tank dimension details step."""
+        if not hasattr(self, "_user_input"):
+            return await self.async_step_user()
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            diameter = user_input[CONF_TANK_DIAMETER]
+            total_length = user_input[CONF_TANK_TOTAL_LENGTH]
+            tank_volume = user_input[CONF_TANK_VOLUME]
+
+            if diameter <= 0:
+                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
+            if total_length <= 0:
+                errors[CONF_TANK_TOTAL_LENGTH] = "invalid_length"
+            if tank_volume <= 0:
+                errors[CONF_TANK_VOLUME] = "invalid_volume"
+
+            end_cap_type = self._user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
+            cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
+            if not errors:
+                for entry in self._async_current_entries():
+                    if entry.data.get(CONF_SOURCE_ENTITY) == self._user_input[CONF_SOURCE_ENTITY]:
+                        return self.async_abort(reason="already_configured")
+
+                data = {
+                    **self._user_input,
+                    **user_input,
+                    CONF_CYLINDER_LENGTH: cylinder_length,
+                }
+
+                return self.async_create_entry(
+                    title=self._user_input[CONF_NAME],
+                    data=data,
+                )
+
+        tank_capacity = self._user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
+        defaults = _get_details_defaults(tank_capacity, user_input)
+        read_only = tank_capacity != CAPACITY_CUSTOM
+        data_schema = _build_details_schema(
+            defaults[CONF_TANK_DIAMETER],
+            defaults[CONF_TANK_TOTAL_LENGTH],
+            defaults[CONF_TANK_VOLUME],
+            read_only,
+        )
+
+        return self.async_show_form(
+            step_id="details",
             data_schema=data_schema,
             errors=errors,
         )
@@ -160,45 +244,19 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
+            user_input[CONF_TANK_CAPACITY] = tank_capacity
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
+            user_input.setdefault(CONF_END_CAP_TYPE, end_cap_type)
 
-            if tank_capacity == CAPACITY_CUSTOM:
-                # For custom, estimate total length.
-                diameter = user_input[CONF_TANK_DIAMETER]
-                estimated_total_length = diameter * 5
-                cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
-            else:
-                # Use standard specs and override diameter to match selection.
-                specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
-                diameter = specs["diameter"]
-                user_input[CONF_TANK_DIAMETER] = diameter
-                total_length = specs["total_length"]
-                cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
-
-            # Validate tank diameter
-            if diameter <= 0:
-                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-
-            # Store calculated cylinder length
-            user_input[CONF_CYLINDER_LENGTH] = cylinder_length
-
-            if not errors:
-                return self.async_create_entry(title="", data=user_input)
+            self._options_input = user_input
+            return await self.async_step_details()
 
         # Get current values from config entry data or options
         current_capacity = self.config_entry.options.get(
             CONF_TANK_CAPACITY,
             self.config_entry.data.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY),
         )
-        if current_capacity == CAPACITY_CUSTOM:
-            current_diameter = self.config_entry.options.get(
-                CONF_TANK_DIAMETER,
-                self.config_entry.data.get(CONF_TANK_DIAMETER, 37.5),
-            )
-        else:
-            current_diameter = TANK_SPECS.get(current_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])["diameter"]
         current_end_cap_type = self.config_entry.options.get(
             CONF_END_CAP_TYPE,
             self.config_entry.data.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE),
@@ -236,7 +294,6 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
-                vol.Required(CONF_TANK_DIAMETER, default=current_diameter): vol.Coerce(float),
                 vol.Optional(CONF_END_CAP_TYPE, default=current_end_cap_type): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
@@ -252,6 +309,66 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_details(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Manage the tank dimension details options step."""
+        if not hasattr(self, "_options_input"):
+            return await self.async_step_init()
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            diameter = user_input[CONF_TANK_DIAMETER]
+            total_length = user_input[CONF_TANK_TOTAL_LENGTH]
+            tank_volume = user_input[CONF_TANK_VOLUME]
+
+            if diameter <= 0:
+                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
+            if total_length <= 0:
+                errors[CONF_TANK_TOTAL_LENGTH] = "invalid_length"
+            if tank_volume <= 0:
+                errors[CONF_TANK_VOLUME] = "invalid_volume"
+
+            end_cap_type = self._options_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
+            cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
+            if not errors:
+                data = {
+                    **self._options_input,
+                    **user_input,
+                    CONF_CYLINDER_LENGTH: cylinder_length,
+                }
+                return self.async_create_entry(title="", data=data)
+
+        tank_capacity = self._options_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
+        read_only = tank_capacity != CAPACITY_CUSTOM
+        existing_values = {
+            CONF_TANK_DIAMETER: self.config_entry.options.get(
+                CONF_TANK_DIAMETER,
+                self.config_entry.data.get(CONF_TANK_DIAMETER),
+            ),
+            CONF_TANK_TOTAL_LENGTH: self.config_entry.options.get(
+                CONF_TANK_TOTAL_LENGTH,
+                self.config_entry.data.get(CONF_TANK_TOTAL_LENGTH),
+            ),
+            CONF_TANK_VOLUME: self.config_entry.options.get(
+                CONF_TANK_VOLUME,
+                self.config_entry.data.get(CONF_TANK_VOLUME),
+            ),
+        }
+        defaults = _get_details_defaults(tank_capacity, user_input, existing_values)
+        data_schema = _build_details_schema(
+            defaults[CONF_TANK_DIAMETER],
+            defaults[CONF_TANK_TOTAL_LENGTH],
+            defaults[CONF_TANK_VOLUME],
+            read_only,
+        )
+
+        return self.async_show_form(
+            step_id="details",
             data_schema=data_schema,
             errors=errors,
         )

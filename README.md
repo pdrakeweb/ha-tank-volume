@@ -81,10 +81,14 @@ After setup, you can adjust tank parameters:
      - **500 gallon** (37.5" diameter, 120" total length)
      - **1000 gallon** (41" diameter, 190" total length)
      - **Custom** (specify your own diameter)
-   - **Tank diameter**: Auto-filled based on capacity selection (editable)
-   - **End cap type**: Choose the geometry of your tank ends:
+  - **End cap type**: Choose the geometry of your tank ends:
      - **Ellipsoidal (typical)**: Standard 2:1 semi-ellipsoidal heads (default - most LP tanks)
      - **Flat**: Pure cylinder with no end caps
+5. Provide tank details:
+  - **Tank diameter** (inches)
+  - **Tank total length** (inches)
+  - **Tank volume** (gallons)
+  - Presets prefill default values; Custom starts blank
 
 ### Options
 
@@ -163,9 +167,9 @@ Fill % = [A(h) / (pi * r^2)] * 100
 
 For a semi-ellipsoidal head with radius `r`, head depth `a = r/2`, and fill height `h`:
 
-Volume of liquid in one head:
+Volume of liquid in one head (let `y = h - r`):
 ```
-V_head(h) = (pi * h^2 * (3 * r - h)) / (6 * r)
+V_head(h) = 0.5 * pi * r * a * (y - (y^3 / (3 * r^2)) + (2/3) * r)
 ```
 
 Total tank volume at height `h`:
