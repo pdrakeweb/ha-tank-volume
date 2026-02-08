@@ -16,7 +16,7 @@
         "data_description": {
           "tank_diameter": "Used as the tank diameter. Presets fill a default value you can adjust.",
           "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used.",
-          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation."
+          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation (default 0.0019)."
         }
       }
     },
@@ -38,7 +38,7 @@
         "data_description": {
           "tank_diameter": "Used as the tank diameter. Presets fill a default value you can adjust.",
           "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used.",
-          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation."
+          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation (default 0.0019)."
         }
       }
     },
