@@ -14,10 +14,11 @@ from homeassistant.helpers import selector
 
 from .const import (
     CAPACITY_250,
-    CAPACITY_330,
+    CAPACITY_325,
     CAPACITY_500,
     CAPACITY_1000,
     CAPACITY_CUSTOM,
+    CONF_ADJUSTMENT_COEFFICIENT,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
     CONF_SOURCE_ENTITY,
@@ -26,6 +27,7 @@ from .const import (
     CONF_TANK_TOTAL_LENGTH,
     CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
+    DEFAULT_ADJUSTMENT_COEFFICIENT,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
     DEFAULT_TANK_CAPACITY,
@@ -127,6 +129,10 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             user_input[CONF_TANK_CAPACITY] = tank_capacity
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
             user_input.setdefault(CONF_END_CAP_TYPE, end_cap_type)
+            user_input.setdefault(
+                CONF_ADJUSTMENT_COEFFICIENT,
+                DEFAULT_ADJUSTMENT_COEFFICIENT,
+            )
 
             self._user_input = user_input
             return await self.async_step_details()
@@ -134,6 +140,12 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         default_capacity = DEFAULT_TANK_CAPACITY
 
         # Show form
+        coefficient_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
@@ -143,11 +155,15 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
+                vol.Optional(
+                    CONF_ADJUSTMENT_COEFFICIENT,
+                    default=DEFAULT_ADJUSTMENT_COEFFICIENT,
+                ): coefficient_selector,
                 vol.Required(CONF_TANK_CAPACITY, default=default_capacity): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {"value": CAPACITY_250, "label": "250 gallon"},
-                            {"value": CAPACITY_330, "label": "330 gallon"},
+                            {"value": CAPACITY_325, "label": "325 gallon"},
                             {"value": CAPACITY_500, "label": "500 gallon"},
                             {"value": CAPACITY_1000, "label": "1000 gallon"},
                             {"value": CAPACITY_CUSTOM, "label": "Custom"},
@@ -248,6 +264,10 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             user_input[CONF_TANK_CAPACITY] = tank_capacity
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
             user_input.setdefault(CONF_END_CAP_TYPE, end_cap_type)
+            user_input.setdefault(
+                CONF_ADJUSTMENT_COEFFICIENT,
+                DEFAULT_ADJUSTMENT_COEFFICIENT,
+            )
 
             self._options_input = user_input
             return await self.async_step_details()
@@ -265,6 +285,13 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_TEMPERATURE_ENTITY,
             self.config_entry.data.get(CONF_TEMPERATURE_ENTITY),
         )
+        current_coefficient = self.config_entry.options.get(
+            CONF_ADJUSTMENT_COEFFICIENT,
+            self.config_entry.data.get(
+                CONF_ADJUSTMENT_COEFFICIENT,
+                DEFAULT_ADJUSTMENT_COEFFICIENT,
+            ),
+        )
 
         temperature_selector: dict[vol.Marker, selector.Selector] = {}
         if current_temperature_entity:
@@ -280,13 +307,19 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 )
             }
 
+        coefficient_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_TANK_CAPACITY, default=current_capacity): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {"value": CAPACITY_250, "label": "250 gallon"},
-                            {"value": CAPACITY_330, "label": "330 gallon"},
+                            {"value": CAPACITY_325, "label": "325 gallon"},
                             {"value": CAPACITY_500, "label": "500 gallon"},
                             {"value": CAPACITY_1000, "label": "1000 gallon"},
                             {"value": CAPACITY_CUSTOM, "label": "Custom"},
@@ -303,6 +336,10 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Optional(
+                    CONF_ADJUSTMENT_COEFFICIENT,
+                    default=current_coefficient,
+                ): coefficient_selector,
                 **temperature_selector,
             }
         )

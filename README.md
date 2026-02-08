@@ -77,9 +77,9 @@ After setup, you can adjust tank parameters:
    - **Source sensor**: The entity that provides fill height in inches
    - **Tank capacity**: Select your tank size:
      - **250 gallon** (30" diameter, 92" total length)
-     - **330 gallon** (30" diameter, 120" total length)
+    - **325 gallon** (30" diameter, 120" total length)
      - **500 gallon** (37.5" diameter, 120" total length)
-     - **1000 gallon** (41" diameter, 190" total length)
+     - **1000 gallon** (41" diameter, 194" total length)
      - **Custom** (specify your own diameter)
   - **End cap type**: Choose the geometry of your tank ends:
      - **Ellipsoidal (typical)**: Standard 2:1 semi-ellipsoidal heads (default - most LP tanks)

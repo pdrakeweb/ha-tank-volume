@@ -8,13 +8,15 @@
           "name": "Name",
           "source_entity": "Source sensor (fill height in inches)",
           "temperature_entity": "Temperature sensor (optional)",
+          "adjustment_coefficient": "Temperature adjustment coefficient",
           "tank_capacity": "Tank capacity",
           "tank_diameter": "Tank diameter (inches)",
           "end_cap_type": "End cap type"
         },
         "data_description": {
           "tank_diameter": "Used as the tank diameter. Presets fill a default value you can adjust.",
-          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
+          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used.",
+          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation."
         }
       }
     },
@@ -30,11 +32,13 @@
           "tank_capacity": "Tank capacity",
           "tank_diameter": "Tank diameter (inches)",
           "end_cap_type": "End cap type",
-          "temperature_entity": "Temperature sensor (optional)"
+          "temperature_entity": "Temperature sensor (optional)",
+          "adjustment_coefficient": "Temperature adjustment coefficient"
         },
         "data_description": {
           "tank_diameter": "Used as the tank diameter. Presets fill a default value you can adjust.",
-          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
+          "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used.",
+          "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation."
         }
       }
     },

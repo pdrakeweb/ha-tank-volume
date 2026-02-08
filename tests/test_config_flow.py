@@ -9,6 +9,7 @@ import voluptuous as vol
 from custom_components.tank_volume.const import (
     CAPACITY_500,
     CAPACITY_CUSTOM,
+    CONF_ADJUSTMENT_COEFFICIENT,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
     CONF_NAME,
@@ -17,6 +18,7 @@ from custom_components.tank_volume.const import (
     CONF_TANK_DIAMETER,
     CONF_TANK_TOTAL_LENGTH,
     CONF_TANK_VOLUME,
+    DEFAULT_ADJUSTMENT_COEFFICIENT,
     DOMAIN,
 )
 from homeassistant import config_entries
@@ -63,6 +65,7 @@ async def test_form(hass: HomeAssistant) -> None:
         assert result3["data"][CONF_NAME] == "Test Tank"
         assert result3["data"][CONF_SOURCE_ENTITY] == "sensor.fill_height"
         assert result3["data"][CONF_TANK_DIAMETER] == 24.0
+        assert result3["data"][CONF_ADJUSTMENT_COEFFICIENT] == DEFAULT_ADJUSTMENT_COEFFICIENT
         # Verify the auto-calculated fields are present
         assert CONF_CYLINDER_LENGTH in result3["data"]
         assert CONF_END_CAP_TYPE in result3["data"]
@@ -232,6 +235,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     assert result3["type"] == FlowResultType.CREATE_ENTRY
     # Verify the essential field
     assert result3["data"][CONF_TANK_DIAMETER] == 36.0
+    assert result3["data"][CONF_ADJUSTMENT_COEFFICIENT] == DEFAULT_ADJUSTMENT_COEFFICIENT
     # Verify the auto-calculated fields are present
     assert CONF_CYLINDER_LENGTH in result3["data"]
     assert CONF_END_CAP_TYPE in result3["data"]

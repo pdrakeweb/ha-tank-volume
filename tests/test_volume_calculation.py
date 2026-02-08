@@ -266,7 +266,7 @@ def test_temperature_compensation_fahrenheit():
     )
 
     assert adjusted is not None
-    assert abs(adjusted - (50.0 / 1.03)) < 0.01
+    assert abs(adjusted - (50.0 / 1.06)) < 0.01
 
 
 def test_temperature_compensation_celsius():
@@ -279,4 +279,4 @@ def test_temperature_compensation_celsius():
     )
 
     assert adjusted is not None
-    assert abs(adjusted - 49.41) < 0.05
+    assert abs(adjusted - (50.0 / 1.078)) < 0.05

@@ -5,11 +5,14 @@ from unittest.mock import patch
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
+    CONF_ADJUSTMENT_COEFFICIENT,
     CONF_END_CAP_TYPE,
     CONF_NAME,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
+    CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
+    DEFAULT_ADJUSTMENT_COEFFICIENT,
     DOMAIN,
     END_CAP_FLAT,
 )
@@ -62,6 +65,7 @@ async def test_sensor_state_update(hass: HomeAssistant) -> None:
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
             CONF_END_CAP_TYPE: END_CAP_FLAT,  # Use flat ends for simple testing
         },
         unique_id="sensor.fill_height",
@@ -74,34 +78,50 @@ async def test_sensor_state_update(hass: HomeAssistant) -> None:
     # Get the created sensor entity
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 1
-    entity = entities[0]
+    assert len(entities) == 2
+    fill_level_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
+    contents_entity = next(entity for entity in entities if entity.unique_id.endswith("_contents_volume"))
 
     # Check initial state (12 inches = 50% of 24 inch diameter)
-    state = hass.states.get(entity.entity_id)
+    state = hass.states.get(fill_level_entity.entity_id)
     assert state is not None
     assert state.state != STATE_UNAVAILABLE
     assert state.state != STATE_UNKNOWN
     value = float(state.state)
     assert abs(value - 50.0) < 1.0  # Should be approximately 50%
 
+    contents_state = hass.states.get(contents_entity.entity_id)
+    assert contents_state is not None
+    contents_value = float(contents_state.state)
+    assert abs(contents_value - 125.0) < 1.0
+
     # Update source sensor to empty
     hass.states.async_set("sensor.fill_height", "0.0")
     await hass.async_block_till_done()
 
-    state = hass.states.get(entity.entity_id)
+    state = hass.states.get(fill_level_entity.entity_id)
     assert state is not None
     value = float(state.state)
     assert value == 0.0
+
+    contents_state = hass.states.get(contents_entity.entity_id)
+    assert contents_state is not None
+    contents_value = float(contents_state.state)
+    assert contents_value == 0.0
 
     # Update source sensor to full
     hass.states.async_set("sensor.fill_height", "24.0")
     await hass.async_block_till_done()
 
-    state = hass.states.get(entity.entity_id)
+    state = hass.states.get(fill_level_entity.entity_id)
     assert state is not None
     value = float(state.state)
     assert abs(value - 100.0) < 0.1
+
+    contents_state = hass.states.get(contents_entity.entity_id)
+    assert contents_state is not None
+    contents_value = float(contents_state.state)
+    assert abs(contents_value - 250.0) < 0.1
 
 
 async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
@@ -118,6 +138,7 @@ async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
         },
         unique_id="sensor.fill_height",
     )
@@ -128,13 +149,13 @@ async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 1
-    entity = entities[0]
+    assert len(entities) == 2
 
-    state = hass.states.get(entity.entity_id)
-    assert state is not None
-    # When source is unavailable, sensor should also be unavailable or unknown
-    assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
+    for entity in entities:
+        state = hass.states.get(entity.entity_id)
+        assert state is not None
+        # When source is unavailable, sensor should also be unavailable or unknown
+        assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
 
 
 async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
@@ -151,6 +172,7 @@ async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
         },
         unique_id="sensor.fill_height",
     )
@@ -161,12 +183,12 @@ async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 1
-    entity = entities[0]
+    assert len(entities) == 2
 
-    state = hass.states.get(entity.entity_id)
-    assert state is not None
-    assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
+    for entity in entities:
+        state = hass.states.get(entity.entity_id)
+        assert state is not None
+        assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
 
 
 async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
@@ -183,6 +205,7 @@ async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
         },
         unique_id="sensor.fill_height",
     )
@@ -193,13 +216,13 @@ async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 1
-    entity = entities[0]
+    assert len(entities) == 2
 
-    state = hass.states.get(entity.entity_id)
-    assert state is not None
-    # Should be unavailable or None when source is non-numeric
-    assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
+    for entity in entities:
+        state = hass.states.get(entity.entity_id)
+        assert state is not None
+        # Should be unavailable or None when source is non-numeric
+        assert state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN, "None")
 
 
 async def test_sensor_attributes(hass: HomeAssistant) -> None:
@@ -215,6 +238,7 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
             CONF_NAME: "Test Tank",
             CONF_SOURCE_ENTITY: "sensor.fill_height",
             CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
         },
         unique_id="sensor.fill_height",
     )
@@ -225,10 +249,10 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 1
-    entity = entities[0]
+    assert len(entities) == 2
+    fill_level_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
 
-    state = hass.states.get(entity.entity_id)
+    state = hass.states.get(fill_level_entity.entity_id)
     assert state is not None
     assert "source_entity" in state.attributes
     assert state.attributes["source_entity"] == "sensor.fill_height"
@@ -236,6 +260,8 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
     assert state.attributes["tank_diameter_inches"] == 24.0
     assert "fill_height_inches" in state.attributes
     assert state.attributes["fill_height_inches"] == 12.0
+    assert "adjustment_coefficient" in state.attributes
+    assert state.attributes["adjustment_coefficient"] == DEFAULT_ADJUSTMENT_COEFFICIENT
 
 
 async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -> None:
@@ -258,6 +284,8 @@ async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -
             CONF_TANK_DIAMETER: 24.0,
             CONF_TEMPERATURE_ENTITY: "sensor.lp_temp",
             CONF_END_CAP_TYPE: END_CAP_FLAT,
+            CONF_TANK_VOLUME: 250.0,
+            CONF_ADJUSTMENT_COEFFICIENT: 0.003,
         },
         unique_id="sensor.fill_height",
     )
@@ -268,11 +296,11 @@ async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 4
 
-    base_entity = next(entity for entity in entities if entity.unique_id.endswith("_volume_percentage"))
+    base_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
     adjusted_entity = next(
-        entity for entity in entities if entity.unique_id.endswith("_volume_percentage_temp_adjusted")
+        entity for entity in entities if entity.unique_id.endswith("_temperature_adjusted_fill_level")
     )
 
     base_state = hass.states.get(base_entity.entity_id)
@@ -284,4 +312,4 @@ async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -
     assert adjusted_state is not None
     adjusted_value = float(adjusted_state.state)
 
-    assert abs(adjusted_value - (50.0 / 1.03)) < 0.1
+    assert abs(adjusted_value - (50.0 / 1.06)) < 0.1
