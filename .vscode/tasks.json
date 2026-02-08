@@ -75,9 +75,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Install Requirements",
+      "label": "Setup (Bootstrap)",
       "type": "shell",
-      "command": "${command:python.interpreterPath} -m pip install -r requirements.txt",
+      "command": "./script/setup/bootstrap",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -86,9 +86,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Install Dev Requirements",
+      "label": "Setup (Reset)",
       "type": "shell",
-      "command": "${command:python.interpreterPath} -m pip install -r requirements_dev.txt",
+      "command": "./script/setup/reset",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -97,9 +97,20 @@
       "problemMatcher": []
     },
     {
-      "label": "Install Test Requirements",
+      "label": "Setup (Setup)",
       "type": "shell",
-      "command": "${command:python.interpreterPath} -m pip install -r requirements_test.txt",
+      "command": "./script/setup/setup",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Setup (Sync HACS)",
+      "type": "shell",
+      "command": "./script/setup/sync-hacs",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -123,6 +134,28 @@
       "type": "shell",
       "command": "./script/clean --deep",
       "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Spell Check",
+      "type": "shell",
+      "command": "./script/spell-check",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Hassfest",
+      "type": "shell",
+      "command": "./script/hassfest",
+      "group": "test",
       "presentation": {
         "reveal": "always",
         "panel": "new"
@@ -154,7 +187,7 @@
     {
       "label": "Validate Manifest",
       "type": "shell",
-      "command": "${command:python.interpreterPath} -c \"import json; json.load(open('custom_components/ha_integration_domain/manifest.json')); print('✅ manifest.json is valid')\"",
+      "command": "${command:python.interpreterPath} -c \"import json; json.load(open('custom_components/tank_volume/manifest.json')); print('✅ manifest.json is valid')\"",
       "group": "test",
       "presentation": {
         "reveal": "always",

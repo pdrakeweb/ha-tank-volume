@@ -1,22 +1,22 @@
 """Tests for Tank Volume Calculator sensor platform."""
+
 from unittest.mock import patch
 
-import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.tank_volume.const import (
+    CONF_END_CAP_TYPE,
+    CONF_NAME,
+    CONF_SOURCE_ENTITY,
+    CONF_TANK_DIAMETER,
+    DOMAIN,
+    END_CAP_FLAT,
+)
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-from custom_components.tank_volume.const import (
-    CONF_NAME,
-    CONF_SOURCE_ENTITY,
-    CONF_TANK_DIAMETER,
-    CONF_END_CAP_TYPE,
-    DOMAIN,
-    END_CAP_FLAT,
-)
 
 
 async def test_sensor_setup(hass: HomeAssistant) -> None:

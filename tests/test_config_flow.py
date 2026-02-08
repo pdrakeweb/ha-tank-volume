@@ -1,10 +1,7 @@
 """Tests for Tank Volume Calculator config flow."""
+
 from unittest.mock import patch
 
-import pytest
-from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
@@ -14,16 +11,16 @@ from custom_components.tank_volume.const import (
     CONF_SOURCE_ENTITY,
     CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
-    DEFAULT_NAME,
     DOMAIN,
 )
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
 
 
 async def test_form(hass: HomeAssistant) -> None:
     """Test we get the form."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {}
 
@@ -56,9 +53,7 @@ async def test_form(hass: HomeAssistant) -> None:
 
 async def test_form_invalid_diameter_zero(hass: HomeAssistant) -> None:
     """Test we handle invalid diameter (zero)."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -75,9 +70,7 @@ async def test_form_invalid_diameter_zero(hass: HomeAssistant) -> None:
 
 async def test_form_invalid_diameter_negative(hass: HomeAssistant) -> None:
     """Test we handle invalid diameter (negative)."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -95,9 +88,7 @@ async def test_form_invalid_diameter_negative(hass: HomeAssistant) -> None:
 async def test_form_duplicate_source_entity(hass: HomeAssistant) -> None:
     """Test we handle duplicate source entity."""
     # Create first entry
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     with patch(
         "custom_components.tank_volume.async_setup_entry",
@@ -116,9 +107,7 @@ async def test_form_duplicate_source_entity(hass: HomeAssistant) -> None:
     assert result2["type"] == FlowResultType.CREATE_ENTRY
 
     # Try to create second entry with same source entity
-    result3 = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result3 = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     result4 = await hass.config_entries.flow.async_configure(
         result3["flow_id"],
@@ -164,7 +153,7 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     # Verify the essential field
     assert result2["data"][CONF_TANK_DIAMETER] == 36.0
-    # Verify the auto-calculated fields are present  
+    # Verify the auto-calculated fields are present
     assert CONF_CYLINDER_LENGTH in result2["data"]
     assert CONF_END_CAP_TYPE in result2["data"]
     assert CONF_TANK_CAPACITY in result2["data"]

@@ -31,7 +31,6 @@ system_health:
 # Core integrations
 http:
   # Development server settings for Codespaces/DevContainer
-  server_host: "0.0.0.0"
   # Allow access from Codespaces reverse proxy
   use_x_forwarded_for: true
   trusted_proxies:

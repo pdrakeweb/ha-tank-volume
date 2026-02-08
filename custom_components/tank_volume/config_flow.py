@@ -1,4 +1,5 @@
 """Config flow for Tank Volume Calculator integration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -12,10 +13,10 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
-    CAPACITY_1000,
     CAPACITY_250,
     CAPACITY_330,
     CAPACITY_500,
+    CAPACITY_1000,
     CAPACITY_CUSTOM,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
@@ -39,9 +40,8 @@ def calculate_cylinder_length(diameter: float, total_length: float, end_cap_type
         head_depth = diameter / 4.0
         # Cylinder length = total length - 2 * head depth
         return total_length - (2.0 * head_depth)
-    else:
-        # For flat ends, cylinder length = total length
-        return total_length
+    # For flat ends, cylinder length = total length
+    return total_length
 
 
 class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -49,9 +49,7 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step."""
         errors = {}
 
@@ -59,32 +57,28 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Validate tank diameter
             if user_input[CONF_TANK_DIAMETER] <= 0:
                 errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-            
+
             # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
-            
+
             if tank_capacity == CAPACITY_CUSTOM:
                 # For custom, user must provide diameter
                 # Estimate total length as 5x diameter (rough approximation)
                 # User can adjust via options if needed
                 diameter = user_input[CONF_TANK_DIAMETER]
                 estimated_total_length = diameter * 5
-                cylinder_length = calculate_cylinder_length(
-                    diameter, estimated_total_length, end_cap_type
-                )
+                cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
             else:
                 # Use standard specs
                 specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
                 total_length = specs["total_length"]
                 diameter = user_input[CONF_TANK_DIAMETER]
-                cylinder_length = calculate_cylinder_length(
-                    diameter, total_length, end_cap_type
-                )
-            
+                cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
             # Store calculated cylinder length
             user_input[CONF_CYLINDER_LENGTH] = cylinder_length
-            
+
             if not errors:
                 # Create unique ID based on source entity
                 await self.async_set_unique_id(user_input[CONF_SOURCE_ENTITY])
@@ -157,9 +151,7 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Tank Volume Calculator options."""
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Manage the options."""
         errors = {}
 
@@ -167,30 +159,26 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             # Validate tank diameter
             if user_input[CONF_TANK_DIAMETER] <= 0:
                 errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-            
+
             # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
-            
+
             if tank_capacity == CAPACITY_CUSTOM:
                 # For custom, estimate total length
                 diameter = user_input[CONF_TANK_DIAMETER]
                 estimated_total_length = diameter * 5
-                cylinder_length = calculate_cylinder_length(
-                    diameter, estimated_total_length, end_cap_type
-                )
+                cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
             else:
                 # Use standard specs
                 specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
                 total_length = specs["total_length"]
                 diameter = user_input[CONF_TANK_DIAMETER]
-                cylinder_length = calculate_cylinder_length(
-                    diameter, total_length, end_cap_type
-                )
-            
+                cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
             # Store calculated cylinder length
             user_input[CONF_CYLINDER_LENGTH] = cylinder_length
-            
+
             if not errors:
                 return self.async_create_entry(title="", data=user_input)
 
@@ -210,9 +198,7 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
 
         data_schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_TANK_CAPACITY, default=current_capacity
-                ): selector.SelectSelector(
+                vol.Required(CONF_TANK_CAPACITY, default=current_capacity): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {"value": CAPACITY_250, "label": "250 gallon"},
@@ -224,12 +210,8 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
-                vol.Required(
-                    CONF_TANK_DIAMETER, default=current_diameter
-                ): vol.Coerce(float),
-                vol.Optional(
-                    CONF_END_CAP_TYPE, default=current_end_cap_type
-                ): selector.SelectSelector(
+                vol.Required(CONF_TANK_DIAMETER, default=current_diameter): vol.Coerce(float),
+                vol.Optional(CONF_END_CAP_TYPE, default=current_end_cap_type): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {"value": END_CAP_ELLIPSOIDAL_2_1, "label": "Ellipsoidal (typical)"},

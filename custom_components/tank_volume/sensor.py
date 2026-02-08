@@ -1,15 +1,12 @@
 """Tank Volume Calculator sensor platform."""
+
 from __future__ import annotations
 
 import logging
 import math
 from typing import Any
 
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorStateClass,
-)
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME, PERCENTAGE
 from homeassistant.core import Event, HomeAssistant, callback
@@ -30,9 +27,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def compute_horizontal_cylinder_volume_percentage(
-    fill_height_inches: float, diameter_inches: float
-) -> float | None:
+def compute_horizontal_cylinder_volume_percentage(fill_height_inches: float, diameter_inches: float) -> float | None:
     """
     Calculate the volumetric fill percentage for a horizontal cylindrical tank.
 
@@ -78,13 +73,10 @@ def compute_horizontal_cylinder_volume_percentage(
 
         # Full circle area
         circle_area = math.pi * r * r
-
-        # Calculate percentage
-        percentage = (segment_area / circle_area) * 100.0
-
-        return percentage
     except (ValueError, ZeroDivisionError):
         return None
+    else:
+        return (segment_area / circle_area) * 100.0
 
 
 def compute_ellipsoidal_head_volume(
@@ -111,13 +103,14 @@ def compute_ellipsoidal_head_volume(
         # Full head - return total volume
         return (2.0 / 3.0) * math.pi * radius * radius * head_depth
 
-    h = fill_height
+    h = max(0.0, min(fill_height, diameter))
     r = radius
     a = head_depth
 
-    # V = (π × a / (3 × r²)) × h² × (3r - h)
-    volume = (math.pi * a / (3.0 * r * r)) * h * h * (3.0 * r - h)
-    return volume
+    # Integrate half-ellipsoid cross-section areas from y = -r to y = -r + h.
+    # Volume = 0.5 * pi * r * a * (y - y^3 / (3 r^2)) |_{-r}^{h - r}
+    y = h - r
+    return 0.5 * math.pi * r * a * (y - (y**3) / (3.0 * r * r) + (2.0 / 3.0) * r)
 
 
 def compute_tank_volume_with_heads(
@@ -185,13 +178,10 @@ def compute_tank_volume_with_heads(
         # Total tank capacity
         circle_area = math.pi * r * r
         total_capacity = circle_area * cylinder_length + total_head_volume
-
-        # Calculate percentage
-        percentage = (total_volume / total_capacity) * 100.0
-
-        return percentage
     except (ValueError, ZeroDivisionError):
         return None
+    else:
+        return (total_volume / total_capacity) * 100.0
 
 
 async def async_setup_entry(
@@ -201,18 +191,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Tank Volume Calculator sensor from a config entry."""
     source_entity = config_entry.data[CONF_SOURCE_ENTITY]
-    tank_diameter = config_entry.options.get(
-        CONF_TANK_DIAMETER, config_entry.data[CONF_TANK_DIAMETER]
-    )
+    tank_diameter = config_entry.options.get(CONF_TANK_DIAMETER, config_entry.data[CONF_TANK_DIAMETER])
     name = config_entry.data[CONF_NAME]
 
     # Get end cap configuration
     end_cap_type = config_entry.options.get(
         CONF_END_CAP_TYPE, config_entry.data.get(CONF_END_CAP_TYPE, END_CAP_ELLIPSOIDAL_2_1)
     )
-    cylinder_length = config_entry.options.get(
-        CONF_CYLINDER_LENGTH, config_entry.data.get(CONF_CYLINDER_LENGTH)
-    )
+    cylinder_length = config_entry.options.get(CONF_CYLINDER_LENGTH, config_entry.data.get(CONF_CYLINDER_LENGTH))
 
     sensor = TankVolumeSensor(
         config_entry.entry_id,
@@ -288,9 +274,7 @@ class TankVolumeSensor(SensorEntity):
 
         # Track state changes
         self.async_on_remove(
-            async_track_state_change_event(
-                self.hass, [self._source_entity], self._async_source_changed
-            )
+            async_track_state_change_event(self.hass, [self._source_entity], self._async_source_changed)
         )
 
     @callback
@@ -319,9 +303,7 @@ class TankVolumeSensor(SensorEntity):
             # Calculate volume percentage based on end cap configuration
             if self._end_cap_type == END_CAP_FLAT:
                 # Pure cylinder calculation (flat ends)
-                percentage = compute_horizontal_cylinder_volume_percentage(
-                    fill_height, self._tank_diameter
-                )
+                percentage = compute_horizontal_cylinder_volume_percentage(fill_height, self._tank_diameter)
             else:
                 # Use cylinder length for tank with ellipsoidal heads
                 cylinder_length = self._cylinder_length or self._tank_diameter
@@ -334,8 +316,6 @@ class TankVolumeSensor(SensorEntity):
 
             self._attr_native_value = percentage
         except (ValueError, TypeError):
-            _LOGGER.warning(
-                "Unable to parse source entity state '%s' as a number", state_value
-            )
+            _LOGGER.warning("Unable to parse source entity state '%s' as a number", state_value)
             self._attr_native_value = None
             self._fill_height = None

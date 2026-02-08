@@ -1,6 +1,14 @@
 # Tank Volume Calculator for Home Assistant
 
-A Home Assistant custom integration that calculates the volumetric fill percentage of horizontal cylindrical tanks with semi-ellipsoidal (dished) end caps - perfect for residential propane (LP) tanks.
+[![GitHub Release][releases-shield]][releases]
+[![GitHub Activity][commits-shield]][commits]
+[![License][license-shield]](LICENSE)
+[![hacs][hacsbadge]][hacs]
+![Project Maintenance][maintenance-shield]
+
+A Home Assistant custom integration that calculates the volumetric fill percentage of horizontal
+cylindrical tanks with semi-ellipsoidal (dished) end caps. It is designed for residential propane
+(LP) tanks but works for any horizontal cylindrical vessel.
 
 ## Features
 
@@ -11,30 +19,58 @@ A Home Assistant custom integration that calculates the volumetric fill percenta
 - **Easy Configuration**: Simple UI-based setup with smart defaults
 - **Flexible Units**: Works with any distance sensor (ultrasonic, pressure, etc.)
 
-## Installation
+**This integration will set up the following platforms.**
 
-### HACS (Recommended)
+Platform | Description
+-- | --
+`sensor` | Tank volume percentage and diagnostics attributes
 
-1. Open HACS in your Home Assistant instance
-2. Click on "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add this repository URL and select "Integration" as the category
-6. Click "Install"
-7. Restart Home Assistant
+## Quick Start
 
-### Manual Installation
+### Step 1: Install the Integration
 
-1. Download the `custom_components/tank_volume` folder from this repository
-2. Copy it to your Home Assistant `custom_components` directory
+**Prerequisites:** This integration requires [HACS](https://hacs.xyz/) to be installed.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pdrakeweb&repository=ha-tank-volume&category=integration)
+
+Then:
+
+1. Click "Download" to install the integration
+2. Restart Home Assistant
+
+<details>
+<summary>Manual Installation (Advanced)</summary>
+
+1. Download the `custom_components/tank_volume/` folder from this repository
+2. Copy it to your Home Assistant `custom_components/` directory
 3. Restart Home Assistant
 
-## Configuration
+</details>
+
+### Step 2: Add and Configure the Integration
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tank_volume)
+
+Or configure manually:
+
+1. Go to **Settings** -> **Devices & Services**
+2. Click **+ Add Integration**
+3. Search for "Tank Volume Calculator"
+
+### Step 3: Adjust Settings (Optional)
+
+After setup, you can adjust tank parameters:
+
+1. Go to **Settings** -> **Devices & Services**
+2. Find **Tank Volume Calculator**
+3. Click **Configure**
+
+## Configuration Details
 
 ### Setup
 
-1. Go to **Settings** → **Devices & Services**
-2. Click **Add Integration**
+1. Go to **Settings** -> **Devices & Services**
+2. Click **+ Add Integration**
 3. Search for "Tank Volume Calculator"
 4. Fill in the configuration form:
    - **Name**: A friendly name for your tank
@@ -54,7 +90,7 @@ A Home Assistant custom integration that calculates the volumetric fill percenta
 
 You can modify the tank parameters after setup:
 
-1. Go to **Settings** → **Devices & Services**
+1. Go to **Settings** -> **Devices & Services**
 2. Find the Tank Volume Calculator integration
 3. Click **Configure**
 4. Update the values as needed
@@ -70,13 +106,14 @@ Based on common residential propane tank dimensions:
 | 500 gal  | 37.5"    | 120"         | 101.25"          | 9.375"      |
 | 1000 gal | 41"      | 190"         | 169.5"           | 10.25"      |
 
-*Calculated automatically for ellipsoidal heads (head depth = diameter ÷ 4)
+*Calculated automatically for ellipsoidal heads (head depth = diameter / 4)
 
 ## Tank Geometry Types
 
 ### Ellipsoidal (Typical) - Default
 
-The most common type for residential and commercial LP tanks. These heads have a standard 2:1 elliptical ratio where the depth of each head is exactly 1/4 of the tank diameter.
+The most common type for residential and commercial LP tanks. These heads have a standard 2:1
+elliptical ratio where the depth of each head is exactly 1/4 of the tank diameter.
 
 **Configuration:**
 - End cap type: `Ellipsoidal (typical)`
@@ -84,8 +121,8 @@ The most common type for residential and commercial LP tanks. These heads have a
 
 **How it works:**
 - For a 500 gallon tank (37.5" diameter, 120" total length):
-  - Each head depth: 9.375" (37.5 ÷ 4)
-  - Cylinder length: 101.25" (120 - 2 × 9.375)
+  - Each head depth: 9.375" (37.5 / 4)
+  - Cylinder length: 101.25" (120 - 2 * 9.375)
   - Total capacity includes both cylinder and head volumes
 
 **Use when:**
@@ -104,7 +141,7 @@ A simple horizontal cylinder with flat ends.
 **Use when:**
 - Your tank has flat ends (rare for LP tanks)
 - You want to measure a section of pipe
-- You're using a custom cylindrical tank
+- You are using a custom cylindrical tank
 
 ## Mathematical Background
 
@@ -114,12 +151,12 @@ For a horizontal cylinder with radius `r` and liquid fill height `h`:
 
 The cross-sectional area of liquid is a circular segment:
 ```
-A(h) = r² · arccos((r - h) / r) - (r - h) · √(2rh - h²)
+A(h) = r^2 * arccos((r - h) / r) - (r - h) * sqrt(2 * r * h - h^2)
 ```
 
 Volumetric fill percentage:
 ```
-Fill % = [A(h) / (π · r²)] × 100
+Fill % = [A(h) / (pi * r^2)] * 100
 ```
 
 ### Ellipsoidal Heads (2:1 Ratio)
@@ -128,24 +165,24 @@ For a semi-ellipsoidal head with radius `r`, head depth `a = r/2`, and fill heig
 
 Volume of liquid in one head:
 ```
-V_head(h) = (π × h² × (3r - h)) / (6 × r)
+V_head(h) = (pi * h^2 * (3 * r - h)) / (6 * r)
 ```
 
 Total tank volume at height `h`:
 ```
-V_total(h) = [Cylinder cross-section × L] + [2 × V_head(h)]
+V_total(h) = [Cylinder cross-section * L] + [2 * V_head(h)]
 ```
 
-Where `L` is the cylinder length (total length minus 2 × head depth).
+Where `L` is the cylinder length (total length minus 2 * head depth).
 
 Total capacity:
 ```
-V_capacity = π × r² × L + 2 × [(2/3) × π × r² × a]
+V_capacity = pi * r^2 * L + 2 * [(2/3) * pi * r^2 * a]
 ```
 
 Fill percentage:
 ```
-Fill % = [V_total(h) / V_capacity] × 100
+Fill % = [V_total(h) / V_capacity] * 100
 ```
 
 ## Example Configurations
@@ -161,8 +198,8 @@ End cap type: Ellipsoidal (typical)  # Default
 ```
 
 The integration automatically calculates:
-- Cylinder length: 101.25" (120" total - 2 × 9.375" heads)
-- Head depth: 9.375" (37.5" ÷ 4)
+- Cylinder length: 101.25" (120" total - 2 * 9.375" heads)
+- Head depth: 9.375" (37.5" / 4)
 
 ### Example 2: 250 Gallon LP Tank
 
@@ -191,7 +228,7 @@ The source sensor must provide the fill height in inches. Common source types:
 - **Ultrasonic distance sensors**: Mount at top, measures distance to liquid surface
   - Convert to fill height: `fill_height = tank_diameter - measured_distance`
 - **Pressure sensors**: Convert pressure to height
-  - `fill_height = pressure / (liquid_density × gravity)`
+  - `fill_height = pressure / (liquid_density * gravity)`
 - **Capacitive level sensors**: Usually provide fill height directly
 
 ## Attributes
@@ -223,59 +260,72 @@ The sensor exposes the following attributes:
 
 1. **Compare with known levels**: Fill tank to 25%, 50%, 75% and verify readings
 2. **For ellipsoidal heads**: Remember that fill percentage is NOT linear with height
-   - At 50% height, volume will be less than 50% due to head shape
-   - This is normal and expected behavior
+  - At 50% height, volume should be 50% for symmetric heads
 3. **Check capacity preset**: Verify you selected the correct tank size (250, 330, 500, 1000 gal)
+
+### Enable Debug Logging
+
+To enable debug logging for this integration, add the following to your `configuration.yaml`:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.tank_volume: debug
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. Please feel free to submit a Pull Request.
 
 ## Development
 
 This repository includes a devcontainer configuration for easy development with Visual Studio Code.
 
-### Using the Devcontainer
+### Cloud Development (Optional)
+
+Use GitHub Codespaces to start a cloud dev environment:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/pdrakeweb/ha-tank-volume?quickstart=1)
+
+### Local Development
 
 1. Install [Docker](https://www.docker.com/products/docker-desktop) and [Visual Studio Code](https://code.visualstudio.com/)
 2. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) in VS Code
 3. Clone this repository and open it in VS Code
 4. When prompted, click "Reopen in Container" (or use Command Palette: "Dev Containers: Reopen in Container")
 5. The container will build automatically and install all dependencies
+6. Start Home Assistant inside the devcontainer by running `./script/develop` or the VS Code task
 
 ### Available VS Code Tasks
 
-Once inside the devcontainer, you can run various tasks from the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
+From the Command Palette (Tasks: Run Task):
 
-- **Run Tests**: Execute the test suite with pytest
-- **Run Tests with Coverage**: Run tests and display code coverage report
-- **Lint with Flake8**: Check code style and quality
-- **Setup: Install Test Dependencies**: Install testing requirements
-- **Setup: Install Home Assistant**: Install Home Assistant core
+- **Run Home Assistant (Development Mode)**: Start Home Assistant for local testing
+- **Run Tests**: Execute the test suite
+- **Run Tests with Coverage**: Run tests with coverage output
+- **Lint (Ruff Format + Check)**: Format and lint
+- **Lint Check (Read-Only)**: Lint without formatting
+- **Type Check**: Run static type checking
+- **Check All (Type + Lint)**: Full validation
+- **Hassfest**: Validate integration structure
+- **Spell Check**: Run spell check
+- **Setup (Bootstrap/Setup/Reset)**: Prepare or reset the dev environment
 
-To run a task:
-1. Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
-2. Type "Tasks: Run Task"
-3. Select the desired task from the list
-
-### Running Tests Manually
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=custom_components/tank_volume --cov-report=term-missing -v
-
-# Run a specific test file
-pytest tests/test_sensor.py -v
-```
-
-### Linting
+### Running Commands Manually
 
 ```bash
-# Check code style
-flake8 custom_components/tank_volume/ tests/
+# Start Home Assistant
+./script/develop
+
+# Run tests
+./script/test -v
+
+# Run tests with coverage
+./script/test --cov-html
+
+# Lint and type check
+./script/check
 ```
 
 ## License
@@ -293,3 +343,12 @@ If you encounter any issues or have questions:
 ## Credits
 
 Developed for the Home Assistant community to provide accurate tank volume calculations for residential propane tanks and other horizontal cylindrical vessels.
+
+[commits-shield]: https://img.shields.io/github/commit-activity/y/pdrakeweb/ha-tank-volume.svg?style=for-the-badge
+[commits]: https://github.com/pdrakeweb/ha-tank-volume/commits/main
+[hacs]: https://github.com/hacs/integration
+[hacsbadge]: https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/pdrakeweb/ha-tank-volume.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/maintainer-%40pdrakeweb-blue.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/pdrakeweb/ha-tank-volume.svg?style=for-the-badge
+[releases]: https://github.com/pdrakeweb/ha-tank-volume/releases
