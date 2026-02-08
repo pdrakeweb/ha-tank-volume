@@ -55,27 +55,27 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Validate tank diameter
-            if user_input[CONF_TANK_DIAMETER] <= 0:
-                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-
             # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
 
             if tank_capacity == CAPACITY_CUSTOM:
-                # For custom, user must provide diameter
-                # Estimate total length as 5x diameter (rough approximation)
-                # User can adjust via options if needed
+                # For custom, user must provide diameter.
+                # Estimate total length as 5x diameter (rough approximation).
                 diameter = user_input[CONF_TANK_DIAMETER]
                 estimated_total_length = diameter * 5
                 cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
             else:
-                # Use standard specs
+                # Use standard specs and override diameter to match selection.
                 specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
+                diameter = specs["diameter"]
+                user_input[CONF_TANK_DIAMETER] = diameter
                 total_length = specs["total_length"]
-                diameter = user_input[CONF_TANK_DIAMETER]
                 cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
+            # Validate tank diameter
+            if diameter <= 0:
+                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
 
             # Store calculated cylinder length
             user_input[CONF_CYLINDER_LENGTH] = cylinder_length
@@ -160,25 +160,26 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            # Validate tank diameter
-            if user_input[CONF_TANK_DIAMETER] <= 0:
-                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
-
             # Calculate cylinder length based on capacity selection
             tank_capacity = user_input.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY)
             end_cap_type = user_input.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE)
 
             if tank_capacity == CAPACITY_CUSTOM:
-                # For custom, estimate total length
+                # For custom, estimate total length.
                 diameter = user_input[CONF_TANK_DIAMETER]
                 estimated_total_length = diameter * 5
                 cylinder_length = calculate_cylinder_length(diameter, estimated_total_length, end_cap_type)
             else:
-                # Use standard specs
+                # Use standard specs and override diameter to match selection.
                 specs = TANK_SPECS.get(tank_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])
+                diameter = specs["diameter"]
+                user_input[CONF_TANK_DIAMETER] = diameter
                 total_length = specs["total_length"]
-                diameter = user_input[CONF_TANK_DIAMETER]
                 cylinder_length = calculate_cylinder_length(diameter, total_length, end_cap_type)
+
+            # Validate tank diameter
+            if diameter <= 0:
+                errors[CONF_TANK_DIAMETER] = "invalid_diameter"
 
             # Store calculated cylinder length
             user_input[CONF_CYLINDER_LENGTH] = cylinder_length
@@ -191,10 +192,13 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_TANK_CAPACITY,
             self.config_entry.data.get(CONF_TANK_CAPACITY, DEFAULT_TANK_CAPACITY),
         )
-        current_diameter = self.config_entry.options.get(
-            CONF_TANK_DIAMETER,
-            self.config_entry.data.get(CONF_TANK_DIAMETER, 37.5),
-        )
+        if current_capacity == CAPACITY_CUSTOM:
+            current_diameter = self.config_entry.options.get(
+                CONF_TANK_DIAMETER,
+                self.config_entry.data.get(CONF_TANK_DIAMETER, 37.5),
+            )
+        else:
+            current_diameter = TANK_SPECS.get(current_capacity, TANK_SPECS[DEFAULT_TANK_CAPACITY])["diameter"]
         current_end_cap_type = self.config_entry.options.get(
             CONF_END_CAP_TYPE,
             self.config_entry.data.get(CONF_END_CAP_TYPE, DEFAULT_END_CAP_TYPE),

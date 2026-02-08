@@ -13,6 +13,7 @@
           "end_cap_type": "End cap type"
         },
         "data_description": {
+          "tank_diameter": "Only applicable if Tank capacity is set to Custom.",
           "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
         }
       }
@@ -32,6 +33,7 @@
           "temperature_entity": "Temperature sensor (optional)"
         },
         "data_description": {
+          "tank_diameter": "Only applicable if Tank capacity is set to Custom.",
           "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used."
         }
       }
