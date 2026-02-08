@@ -6,6 +6,8 @@
   "issue_tracker": "https://github.com/pdrakeweb/ha-tank-volume/issues",
   "requirements": [],
   "codeowners": ["@pdrakeweb"],
+  "icon": "icon.png",
+  "logo": "logo.png",
   "dependencies": [],
   "iot_class": "local_push",
   "config_flow": true
