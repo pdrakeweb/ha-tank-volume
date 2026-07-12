@@ -8,3 +8,4 @@
 *.jpg   binary
 *.png   binary
 *.zip   binary
+*.tar   binary
