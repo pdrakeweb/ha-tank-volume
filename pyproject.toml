@@ -271,6 +271,10 @@ split-on-trailing-comma = false
     "T20",     # print() allowed in scripts
     "INP001",  # Implicit namespace package (scripts are not a package)
 ]
+"brands/*" = [
+    "T20",     # print() allowed in asset-generation tooling
+    "INP001",  # Implicit namespace package (not a package)
+]
 "tests/*" = [
     "S101",    # assert is fine in tests
     "PLR2004", # Magic values are fine in tests
