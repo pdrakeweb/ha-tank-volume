@@ -1,5 +1,6 @@
 """Tests for Tank Volume Calculator sensor platform."""
 
+import calendar
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -8,8 +9,11 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
     CONF_ADJUSTMENT_COEFFICIENT,
+    CONF_BURN_RATE_WINDOW_DAYS,
     CONF_END_CAP_TYPE,
     CONF_NAME,
+    CONF_PRICE_ENTITY,
+    CONF_PROPANE_PRICE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
     CONF_TANK_VOLUME,
@@ -84,7 +88,7 @@ async def test_sensor_state_update(hass: HomeAssistant) -> None:
     # Get the created sensor entity
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 5  # 2 volume + 3 burn (daily/monthly/cost)
     fill_level_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
     contents_entity = next(entity for entity in entities if entity.unique_id.endswith("_contents_volume"))
 
@@ -155,7 +159,7 @@ async def test_sensor_unavailable_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 5  # 2 volume + 3 burn (daily/monthly/cost)
 
     for entity in entities:
         state = hass.states.get(entity.entity_id)
@@ -189,7 +193,7 @@ async def test_sensor_unknown_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 5  # 2 volume + 3 burn (daily/monthly/cost)
 
     for entity in entities:
         state = hass.states.get(entity.entity_id)
@@ -222,7 +226,7 @@ async def test_sensor_non_numeric_source(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 5  # 2 volume + 3 burn (daily/monthly/cost)
 
     for entity in entities:
         state = hass.states.get(entity.entity_id)
@@ -255,7 +259,7 @@ async def test_sensor_attributes(hass: HomeAssistant) -> None:
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 2
+    assert len(entities) == 5  # 2 volume + 3 burn (daily/monthly/cost)
     fill_level_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
 
     state = hass.states.get(fill_level_entity.entity_id)
@@ -302,7 +306,7 @@ async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -
 
     entity_registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-    assert len(entities) == 4
+    assert len(entities) == 7  # 4 volume (2 plain + 2 temp-adjusted) + 3 burn
 
     base_entity = next(entity for entity in entities if entity.unique_id.endswith("_fill_level"))
     adjusted_entity = next(
@@ -473,3 +477,97 @@ async def test_sensor_temperature_lag_exposes_attributes(hass: HomeAssistant) ->
     assert "bulk_temperature_f" in state.attributes
     # 70 F is 10 F above the 60 F reference -> effective lag ~ 6 + 0.067*10 = 6.67 h.
     assert abs(state.attributes["effective_lag_hours"] - 6.67) < 0.3
+
+
+async def test_burn_rate_sensors(hass: HomeAssistant) -> None:
+    """Burn-rate, monthly-burn and monthly-cost sensors track a declining tank."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+    start = dt_util.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    with freeze_time(start) as frozen:
+        hass.states.async_set("sensor.fill_height", "18.0")  # start fairly full
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            title="Burn Tank",
+            data={
+                CONF_NAME: "Burn Tank",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_DIAMETER: 24.0,
+                CONF_TANK_VOLUME: 250.0,
+                CONF_END_CAP_TYPE: END_CAP_FLAT,
+                CONF_BURN_RATE_WINDOW_DAYS: 7.0,
+                CONF_PROPANE_PRICE: 3.0,
+            },
+            unique_id="sensor.fill_height",
+        )
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Steadily drop the fill height over 6 days (a monotonic drawdown).
+        for day in range(1, 7):
+            frozen.move_to(start + timedelta(days=day))
+            hass.states.async_set("sensor.fill_height", f"{18.0 - 0.5 * day:.3f}")
+            await hass.async_block_till_done()
+
+        registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+        daily = next(e for e in entities if e.unique_id.endswith("_daily_burn_rate"))
+        monthly = next(e for e in entities if e.unique_id.endswith("_monthly_burn"))
+        cost = next(e for e in entities if e.unique_id.endswith("_monthly_cost"))
+
+        daily_state = hass.states.get(daily.entity_id)
+        monthly_state = hass.states.get(monthly.entity_id)
+        cost_state = hass.states.get(cost.entity_id)
+        assert daily_state is not None and monthly_state is not None and cost_state is not None
+
+        daily_val = float(daily_state.state)
+        assert daily_val > 0  # the tank is being drawn down -> positive burn
+        days_in_month = calendar.monthrange(start.year, start.month)[1]
+        # monthly burn = daily * days in month; cost = monthly burn * $3.00
+        assert abs(float(monthly_state.state) - daily_val * days_in_month) < 0.1
+        assert abs(float(cost_state.state) - float(monthly_state.state) * 3.0) < 0.1
+
+
+async def test_burn_cost_uses_price_entity_over_fixed(hass: HomeAssistant) -> None:
+    """A price entity overrides the fixed price for the monthly cost sensor."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+    start = dt_util.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    with freeze_time(start) as frozen:
+        hass.states.async_set("sensor.fill_height", "18.0")
+        hass.states.async_set("input_number.lp_price", "4.00")
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            title="Price Tank",
+            data={
+                CONF_NAME: "Price Tank",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_DIAMETER: 24.0,
+                CONF_TANK_VOLUME: 250.0,
+                CONF_END_CAP_TYPE: END_CAP_FLAT,
+                CONF_BURN_RATE_WINDOW_DAYS: 7.0,
+                CONF_PROPANE_PRICE: 3.0,  # fixed, should be overridden
+                CONF_PRICE_ENTITY: "input_number.lp_price",
+            },
+            unique_id="sensor.fill_height",
+        )
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        for day in range(1, 7):
+            frozen.move_to(start + timedelta(days=day))
+            hass.states.async_set("sensor.fill_height", f"{18.0 - 0.5 * day:.3f}")
+            await hass.async_block_till_done()
+
+        registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+        monthly = next(e for e in entities if e.unique_id.endswith("_monthly_burn"))
+        cost = next(e for e in entities if e.unique_id.endswith("_monthly_cost"))
+        monthly_state = hass.states.get(monthly.entity_id)
+        cost_state = hass.states.get(cost.entity_id)
+        assert cost_state is not None and cost_state.state not in ("unknown", "unavailable")
+        # cost uses the $4.00 entity price, not the $3.00 fixed value
+        assert abs(float(cost_state.state) - float(monthly_state.state) * 4.0) < 0.1
+        assert cost_state.attributes.get("price_per_gallon") == 4.0

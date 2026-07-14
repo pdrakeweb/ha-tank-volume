@@ -49,14 +49,20 @@
           "adjustment_coefficient": "Temperature adjustment coefficient",
           "temperature_lag_hours": "Temperature lag at 60°F (hours)",
           "temperature_lag_per_degree": "Temperature lag slope (hours per °F)",
-          "temperature_smoothing_hours": "Temperature smoothing (hours)"
+          "temperature_smoothing_hours": "Temperature smoothing (hours)",
+          "burn_rate_window_days": "Burn-rate averaging window (days)",
+          "propane_price_per_gallon": "Propane price per gallon",
+          "price_entity": "Price per gallon entity (optional)"
         },
         "data_description": {
           "temperature_entity": "Optional temperature sensor in F or C. If omitted, the reference temperature of 60 F (15.6 C) is used.",
           "adjustment_coefficient": "Per-degree expansion coefficient used for temperature compensation (default 0.0022).",
           "temperature_lag_hours": "The propane's bulk temperature lags the (externally mounted) sensor by several hours because of thermal mass; compensating against a delayed temperature flattens the daily swing. This is the lag at 60°F. Set 0 (with slope 0) for the instantaneous reading.",
           "temperature_lag_per_degree": "How much the lag grows per °F of seasonal temperature above 60°F (~2-3 h cold, ~6-7 h warm). Default 0.067; set 0 for a constant lag.",
-          "temperature_smoothing_hours": "Averaging window applied around the delayed temperature to reduce sensor noise (default 1 h)."
+          "temperature_smoothing_hours": "Averaging window applied around the delayed temperature to reduce sensor noise (default 1 h).",
+          "burn_rate_window_days": "How many days of the contents-volume trend to average for the burn rate. Shorter reacts faster but is noisier; ~7 days is a good balance (3 days is too noisy to give a stable monthly estimate).",
+          "propane_price_per_gallon": "Fixed price per gallon used for the monthly cost sensor. Leave 0 to disable the cost sensor unless a price entity is set.",
+          "price_entity": "Optional entity providing the current price per gallon (input_number or sensor). If set, it overrides the fixed price."
         }
       },
       "details": {

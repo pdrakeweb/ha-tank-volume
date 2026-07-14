@@ -19,8 +19,11 @@ from .const import (
     CAPACITY_1000,
     CAPACITY_CUSTOM,
     CONF_ADJUSTMENT_COEFFICIENT,
+    CONF_BURN_RATE_WINDOW_DAYS,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
+    CONF_PRICE_ENTITY,
+    CONF_PROPANE_PRICE,
     CONF_SOURCE_ENTITY,
     CONF_TANK_CAPACITY,
     CONF_TANK_DIAMETER,
@@ -31,8 +34,10 @@ from .const import (
     CONF_TEMPERATURE_LAG_PER_DEGREE,
     CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_BURN_RATE_WINDOW_DAYS,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
+    DEFAULT_PROPANE_PRICE,
     DEFAULT_TANK_CAPACITY,
     DEFAULT_TEMPERATURE_LAG_HOURS,
     DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
@@ -42,6 +47,11 @@ from .const import (
     END_CAP_FLAT,
     TANK_SPECS,
 )
+
+
+def _price_entity_selector() -> selector.EntitySelector:
+    """Selector for an optional price-per-gallon entity."""
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=["input_number", "sensor", "number"]))
 
 
 def calculate_cylinder_length(diameter: float, total_length: float, end_cap_type: str) -> float:
@@ -326,6 +336,14 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_TEMPERATURE_SMOOTHING_HOURS,
                 DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
             )
+            user_input.setdefault(
+                CONF_BURN_RATE_WINDOW_DAYS,
+                DEFAULT_BURN_RATE_WINDOW_DAYS,
+            )
+            user_input.setdefault(
+                CONF_PROPANE_PRICE,
+                DEFAULT_PROPANE_PRICE,
+            )
 
             self._options_input = user_input
             return await self.async_step_details()
@@ -363,6 +381,18 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_TEMPERATURE_LAG_PER_DEGREE,
                 DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
             ),
+        )
+        current_window_days = self.config_entry.options.get(
+            CONF_BURN_RATE_WINDOW_DAYS,
+            self.config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+        )
+        current_price = self.config_entry.options.get(
+            CONF_PROPANE_PRICE,
+            self.config_entry.data.get(CONF_PROPANE_PRICE, DEFAULT_PROPANE_PRICE),
+        )
+        current_price_entity = self.config_entry.options.get(
+            CONF_PRICE_ENTITY,
+            self.config_entry.data.get(CONF_PRICE_ENTITY),
         )
         current_smoothing_hours = self.config_entry.options.get(
             CONF_TEMPERATURE_SMOOTHING_HOURS,
@@ -447,6 +477,25 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_TEMPERATURE_SMOOTHING_HOURS,
                     default=current_smoothing_hours,
                 ): hours_selector,
+                vol.Optional(
+                    CONF_BURN_RATE_WINDOW_DAYS,
+                    default=current_window_days,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1.0, step=1.0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="d"
+                    )
+                ),
+                vol.Optional(
+                    CONF_PROPANE_PRICE,
+                    default=current_price,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0.0, step=0.01, mode=selector.NumberSelectorMode.BOX)
+                ),
+                **(
+                    {vol.Optional(CONF_PRICE_ENTITY, default=current_price_entity): _price_entity_selector()}
+                    if current_price_entity
+                    else {vol.Optional(CONF_PRICE_ENTITY): _price_entity_selector()}
+                ),
                 **temperature_selector,
             }
         )

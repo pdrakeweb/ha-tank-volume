@@ -2,23 +2,30 @@
 
 from __future__ import annotations
 
+import calendar
 import logging
 import math
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, CONF_NAME, PERCENTAGE, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.util import dt as dt_util
 
+from .burn_rate import BurnRateCalculator
 from .const import (
     CONF_ADJUSTMENT_COEFFICIENT,
+    CONF_BURN_RATE_WINDOW_DAYS,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
+    CONF_PRICE_ENTITY,
+    CONF_PROPANE_PRICE,
+    CONF_REFILL_THRESHOLD,
     CONF_SOURCE_ENTITY,
     CONF_TANK_DIAMETER,
     CONF_TANK_TOTAL_LENGTH,
@@ -28,6 +35,9 @@ from .const import (
     CONF_TEMPERATURE_LAG_PER_DEGREE,
     CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_BURN_RATE_WINDOW_DAYS,
+    DEFAULT_PROPANE_PRICE,
+    DEFAULT_REFILL_THRESHOLD_GALLONS,
     DEFAULT_TEMPERATURE_LAG_HOURS,
     DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
     DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
@@ -43,11 +53,16 @@ from .const import (
 from .temperature import BulkTemperatureEstimator
 
 SECONDS_PER_HOUR = 3600.0
+SECONDS_PER_DAY = 86400.0
 
 _LOGGER = logging.getLogger(__name__)
 
 MEASUREMENT_CONTENTS_VOLUME = "contents_volume"
 MEASUREMENT_FILL_LEVEL = "fill_level"
+
+BURN_DAILY = "daily_burn"
+BURN_MONTHLY = "monthly_burn"
+BURN_MONTHLY_COST = "monthly_cost"
 
 
 def compute_horizontal_cylinder_volume_percentage(fill_height_inches: float, diameter_inches: float) -> float | None:
@@ -347,6 +362,50 @@ async def async_setup_entry(
             ]
         )
 
+    # Burn-rate / monthly-cost sensors need contents in gallons, so only when a tank
+    # volume is configured. They track the temperature-adjusted contents-volume entity
+    # if temperature compensation is active, else the plain contents-volume entity.
+    if tank_volume:
+        window_days = config_entry.options.get(
+            CONF_BURN_RATE_WINDOW_DAYS,
+            config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+        )
+        refill_threshold = config_entry.options.get(
+            CONF_REFILL_THRESHOLD,
+            config_entry.data.get(CONF_REFILL_THRESHOLD, DEFAULT_REFILL_THRESHOLD_GALLONS),
+        )
+        price = config_entry.options.get(
+            CONF_PROPANE_PRICE,
+            config_entry.data.get(CONF_PROPANE_PRICE, DEFAULT_PROPANE_PRICE),
+        )
+        price_entity = config_entry.options.get(
+            CONF_PRICE_ENTITY,
+            config_entry.data.get(CONF_PRICE_ENTITY),
+        )
+        contents_suffix = "temperature_adjusted_contents_volume" if temperature_entity else "contents_volume"
+        source_unique_id = f"{config_entry.entry_id}_{contents_suffix}"
+        currency = hass.config.currency or "USD"
+        calculator = BurnRateCalculator(
+            window_seconds=window_days * SECONDS_PER_DAY,
+            refill_threshold=refill_threshold,
+        )
+        burn_sensors = [
+            TankBurnSensor(config_entry.entry_id, name, BURN_DAILY, calculator, source_unique_id),
+            TankBurnSensor(config_entry.entry_id, name, BURN_MONTHLY, calculator, source_unique_id),
+            TankBurnSensor(
+                config_entry.entry_id,
+                name,
+                BURN_MONTHLY_COST,
+                calculator,
+                source_unique_id,
+                price=price,
+                price_entity=price_entity,
+                currency=currency,
+            ),
+        ]
+        async_add_entities(sensors + burn_sensors, True)
+        return
+
     async_add_entities(sensors, True)
 
 
@@ -610,3 +669,145 @@ class TankVolumeSensor(SensorEntity):
             return
 
         self._attr_native_value = percentage
+
+
+class TankBurnSensor(SensorEntity):
+    """Burn-rate / monthly-burn / monthly-cost sensor for a tank.
+
+    All three variants share one BurnRateCalculator fed from the (temperature-
+    adjusted) contents-volume entity, so the buffer is maintained once regardless
+    of how many of these sensors exist.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        entry_id: str,
+        device_name: str,
+        kind: str,
+        calculator: BurnRateCalculator,
+        source_unique_id: str,
+        price: float = 0.0,
+        price_entity: str | None = None,
+        currency: str = "USD",
+    ) -> None:
+        """Initialize the burn sensor."""
+        self._entry_id = entry_id
+        self._device_name = device_name
+        self._kind = kind
+        self._calculator = calculator
+        self._source_unique_id = source_unique_id
+        self._price = price or 0.0
+        self._price_entity = price_entity
+        self._source_entity_id: str | None = None
+        self._last_daily_burn: float | None = None
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        if kind == BURN_DAILY:
+            self._attr_name = "Burn rate"
+            self._attr_native_unit_of_measurement = "gal/d"
+            self._attr_icon = "mdi:fire"
+            self._attr_unique_id = f"{entry_id}_daily_burn_rate"
+        elif kind == BURN_MONTHLY:
+            self._attr_name = "Monthly burn"
+            self._attr_native_unit_of_measurement = UnitOfVolume.GALLONS
+            self._attr_icon = "mdi:fire"
+            self._attr_unique_id = f"{entry_id}_monthly_burn"
+        else:  # BURN_MONTHLY_COST
+            self._attr_name = "Monthly cost"
+            self._attr_native_unit_of_measurement = currency
+            self._attr_device_class = SensorDeviceClass.MONETARY
+            self._attr_state_class = None
+            self._attr_icon = "mdi:cash"
+            self._attr_unique_id = f"{entry_id}_monthly_cost"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this entity."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._device_name,
+            manufacturer="Tank Volume Calculator",
+            model="Horizontal Cylinder",
+            entry_type=None,
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        attrs: dict[str, Any] = {"source_entity": self._source_entity_id}
+        if self._kind == BURN_MONTHLY_COST:
+            attrs["price_per_gallon"] = self._current_price()
+            if self._price_entity:
+                attrs["price_entity"] = self._price_entity
+        return attrs
+
+    async def async_added_to_hass(self) -> None:
+        """Resolve and subscribe to the contents-volume (and price) entities."""
+        await super().async_added_to_hass()
+        registry = er.async_get(self.hass)
+        self._source_entity_id = registry.async_get_entity_id("sensor", DOMAIN, self._source_unique_id)
+        if self._source_entity_id is None:
+            _LOGGER.warning("Burn sensor could not resolve contents-volume entity %s", self._source_unique_id)
+            return
+
+        # Seed from the current contents-volume state, if available.
+        if (state := self.hass.states.get(self._source_entity_id)) is not None:
+            self._ingest(state)
+            self._recalculate()
+
+        tracked = [self._source_entity_id]
+        if self._kind == BURN_MONTHLY_COST and self._price_entity:
+            tracked.append(self._price_entity)
+        self.async_on_remove(async_track_state_change_event(self.hass, tracked, self._async_changed))
+
+    @callback
+    def _async_changed(self, event: Event[EventStateChangedData]) -> None:
+        new_state = event.data.get("new_state")
+        if new_state is not None and new_state.entity_id == self._source_entity_id:
+            self._ingest(new_state)
+        self._recalculate()
+        self.async_write_ha_state()
+
+    def _ingest(self, state: Any) -> None:
+        """Feed a contents-volume reading into the shared calculator."""
+        if state.state in ("unknown", "unavailable", None):
+            return
+        try:
+            gallons = float(state.state)
+        except (ValueError, TypeError):
+            return
+        timestamp = state.last_updated.timestamp() if state.last_updated is not None else dt_util.utcnow().timestamp()
+        self._calculator.add(timestamp, gallons)
+
+    def _current_price(self) -> float | None:
+        """Resolve the price per gallon: the price entity wins, else the fixed value."""
+        if self._price_entity and (state := self.hass.states.get(self._price_entity)) is not None:
+            try:
+                return float(state.state)
+            except (ValueError, TypeError):
+                pass
+        return self._price if self._price > 0 else None
+
+    def _recalculate(self) -> None:
+        burn = self._calculator.daily_burn(dt_util.utcnow().timestamp())
+        if burn is not None:
+            self._last_daily_burn = burn
+        daily = self._last_daily_burn
+        if daily is None:
+            self._attr_native_value = None
+            return
+
+        if self._kind == BURN_DAILY:
+            self._attr_native_value = round(daily, 3)
+            return
+
+        now = dt_util.now()
+        days_in_month = calendar.monthrange(now.year, now.month)[1]
+        monthly_gallons = daily * days_in_month
+        if self._kind == BURN_MONTHLY:
+            self._attr_native_value = round(monthly_gallons, 2)
+            return
+
+        price = self._current_price()
+        self._attr_native_value = round(monthly_gallons * price, 2) if price is not None else None

@@ -151,6 +151,38 @@ sensors expose `temperature_lag_hours`, `temperature_lag_per_degree`,
 `temperature_smoothing_hours`, the current `effective_lag_hours`, and the
 `bulk_temperature_f` estimate as attributes to help.
 
+## Burn Rate & Monthly Cost
+
+When a **tank volume** is configured, the integration also adds burn-rate sensors that
+estimate consumption and monthly cost from the (temperature-adjusted) contents volume:
+
+| Sensor | Unit | Description |
+|--------|------|-------------|
+| `... Burn rate` | gal/day | Average daily consumption |
+| `... Monthly burn` | gal | Burn rate × days in the current month |
+| `... Monthly cost` | your HA currency | Monthly burn × price per gallon (unavailable until a price is set) |
+
+The burn rate is a **least-squares trend of the contents volume over a multi-day window**,
+not an endpoint difference. This matters: over a short window (e.g. 72 h) the real
+consumption can be smaller than the sensor's noise, so an endpoint-based rate swings wildly
+positive and negative and, extrapolated to a month, explodes. Averaging ~7 days rejects the
+noise (and the roughly zero-mean daily thermal wave) and gives a stable estimate. **Refills
+are detected as a large upward jump and the trend is measured only over the data since the
+most recent refill**, so a fill-up never reads as negative consumption.
+
+Settings (in the integration's **Configure** / options):
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| **Burn-rate averaging window (days)** | `7` | How many days of the volume trend to average. Shorter reacts faster but is noisier; **3 days is too short to give a stable monthly estimate**. |
+| **Propane price per gallon** | `0` | Fixed price for the cost sensor. `0` leaves the cost sensor unavailable unless a price entity is set. |
+| **Price per gallon entity** | — | Optional `input_number`/`sensor` giving the current price. If set, it overrides the fixed price. |
+
+At low consumption (e.g. summer) the tank is nearly flat and the true burn can be below the
+sensor's noise floor, so the estimate is inherently uncertain then — but the dollar amounts
+are correspondingly small. The estimate is most useful and most stable during the heating
+season, where a 7-day window settles to within a few percent.
+
 ## Standard LP Tank Specifications
 
 Based on common residential propane tank dimensions:

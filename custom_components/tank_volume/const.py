@@ -16,6 +16,10 @@ CONF_ADJUSTMENT_COEFFICIENT = "adjustment_coefficient"
 CONF_TEMPERATURE_LAG_HOURS = "temperature_lag_hours"
 CONF_TEMPERATURE_LAG_PER_DEGREE = "temperature_lag_per_degree"
 CONF_TEMPERATURE_SMOOTHING_HOURS = "temperature_smoothing_hours"
+CONF_BURN_RATE_WINDOW_DAYS = "burn_rate_window_days"
+CONF_PROPANE_PRICE = "propane_price_per_gallon"
+CONF_PRICE_ENTITY = "price_entity"
+CONF_REFILL_THRESHOLD = "refill_threshold_gallons"
 
 # End cap types
 END_CAP_FLAT = "flat"
@@ -72,6 +76,16 @@ MAX_TEMPERATURE_LAG_HOURS = 12.0
 # Time constant (hours) of the slow temperature average used to pick the lag, so the lag
 # tracks the season rather than the daily cycle.
 TEMPERATURE_LAG_SEASON_TIME_CONSTANT_HOURS = 24.0
+
+# Burn-rate / monthly-cost estimation.
+# The daily burn rate is a least-squares trend of the (temperature-adjusted) contents
+# volume over a multi-day window. A short window (e.g. 3 days) is dominated by sensor
+# noise at low consumption and by weather variability at high consumption, so the monthly
+# extrapolation swings wildly; ~7 days averages that out into a stable estimate. Refills
+# (a large upward jump) are detected and the trend is measured only since the last refill.
+DEFAULT_BURN_RATE_WINDOW_DAYS = 7.0
+DEFAULT_REFILL_THRESHOLD_GALLONS = 30.0
+DEFAULT_PROPANE_PRICE = 0.0  # $/gal; 0 means "not set" -> the cost sensor is unavailable
 
 # Platforms
 PLATFORMS = ["sensor"]
