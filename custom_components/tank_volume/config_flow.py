@@ -27,10 +27,16 @@ from .const import (
     CONF_TANK_TOTAL_LENGTH,
     CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
+    CONF_TEMPERATURE_LAG_HOURS,
+    CONF_TEMPERATURE_LAG_PER_DEGREE,
+    CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
     DEFAULT_TANK_CAPACITY,
+    DEFAULT_TEMPERATURE_LAG_HOURS,
+    DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+    DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
     END_CAP_FLAT,
@@ -133,6 +139,18 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_ADJUSTMENT_COEFFICIENT,
                 DEFAULT_ADJUSTMENT_COEFFICIENT,
             )
+            user_input.setdefault(
+                CONF_TEMPERATURE_LAG_HOURS,
+                DEFAULT_TEMPERATURE_LAG_HOURS,
+            )
+            user_input.setdefault(
+                CONF_TEMPERATURE_LAG_PER_DEGREE,
+                DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+            )
+            user_input.setdefault(
+                CONF_TEMPERATURE_SMOOTHING_HOURS,
+                DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
+            )
 
             self._user_input = user_input
             return await self.async_step_details()
@@ -144,6 +162,22 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             selector.NumberSelectorConfig(
                 min=0.0,
                 mode=selector.NumberSelectorMode.BOX,
+            )
+        )
+        hours_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                step=0.5,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="h",
+            )
+        )
+        lag_slope_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                step=0.001,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="h/°",
             )
         )
         data_schema = vol.Schema(
@@ -159,6 +193,18 @@ class TankVolumeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ADJUSTMENT_COEFFICIENT,
                     default=DEFAULT_ADJUSTMENT_COEFFICIENT,
                 ): coefficient_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_LAG_HOURS,
+                    default=DEFAULT_TEMPERATURE_LAG_HOURS,
+                ): hours_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_LAG_PER_DEGREE,
+                    default=DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+                ): lag_slope_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_SMOOTHING_HOURS,
+                    default=DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
+                ): hours_selector,
                 vol.Required(CONF_TANK_CAPACITY, default=default_capacity): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
@@ -268,6 +314,18 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_ADJUSTMENT_COEFFICIENT,
                 DEFAULT_ADJUSTMENT_COEFFICIENT,
             )
+            user_input.setdefault(
+                CONF_TEMPERATURE_LAG_HOURS,
+                DEFAULT_TEMPERATURE_LAG_HOURS,
+            )
+            user_input.setdefault(
+                CONF_TEMPERATURE_LAG_PER_DEGREE,
+                DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+            )
+            user_input.setdefault(
+                CONF_TEMPERATURE_SMOOTHING_HOURS,
+                DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
+            )
 
             self._options_input = user_input
             return await self.async_step_details()
@@ -292,6 +350,27 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 DEFAULT_ADJUSTMENT_COEFFICIENT,
             ),
         )
+        current_lag_hours = self.config_entry.options.get(
+            CONF_TEMPERATURE_LAG_HOURS,
+            self.config_entry.data.get(
+                CONF_TEMPERATURE_LAG_HOURS,
+                DEFAULT_TEMPERATURE_LAG_HOURS,
+            ),
+        )
+        current_lag_per_degree = self.config_entry.options.get(
+            CONF_TEMPERATURE_LAG_PER_DEGREE,
+            self.config_entry.data.get(
+                CONF_TEMPERATURE_LAG_PER_DEGREE,
+                DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+            ),
+        )
+        current_smoothing_hours = self.config_entry.options.get(
+            CONF_TEMPERATURE_SMOOTHING_HOURS,
+            self.config_entry.data.get(
+                CONF_TEMPERATURE_SMOOTHING_HOURS,
+                DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
+            ),
+        )
 
         temperature_selector: dict[vol.Marker, selector.Selector] = {}
         if current_temperature_entity:
@@ -311,6 +390,22 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             selector.NumberSelectorConfig(
                 min=0.0,
                 mode=selector.NumberSelectorMode.BOX,
+            )
+        )
+        hours_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                step=0.5,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="h",
+            )
+        )
+        lag_slope_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                step=0.001,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="h/°",
             )
         )
         data_schema = vol.Schema(
@@ -340,6 +435,18 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_ADJUSTMENT_COEFFICIENT,
                     default=current_coefficient,
                 ): coefficient_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_LAG_HOURS,
+                    default=current_lag_hours,
+                ): hours_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_LAG_PER_DEGREE,
+                    default=current_lag_per_degree,
+                ): lag_slope_selector,
+                vol.Optional(
+                    CONF_TEMPERATURE_SMOOTHING_HOURS,
+                    default=current_smoothing_hours,
+                ): hours_selector,
                 **temperature_selector,
             }
         )

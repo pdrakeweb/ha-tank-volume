@@ -1,7 +1,9 @@
 """Tests for Tank Volume Calculator sensor platform."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
+from freezegun import freeze_time
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tank_volume.const import (
@@ -12,6 +14,9 @@ from custom_components.tank_volume.const import (
     CONF_TANK_DIAMETER,
     CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
+    CONF_TEMPERATURE_LAG_HOURS,
+    CONF_TEMPERATURE_LAG_PER_DEGREE,
+    CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
     DOMAIN,
     END_CAP_FLAT,
@@ -21,6 +26,7 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperat
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 
 
 async def test_sensor_setup(hass: HomeAssistant) -> None:
@@ -313,3 +319,157 @@ async def test_sensor_temperature_compensation_fahrenheit(hass: HomeAssistant) -
     adjusted_value = float(adjusted_state.state)
 
     assert abs(adjusted_value - (50.0 / 1.06)) < 0.1
+
+
+async def _adjusted_fill_value(hass: HomeAssistant, entry: MockConfigEntry) -> float:
+    """Return the current temperature-adjusted fill-level value for an entry."""
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    adjusted_entity = next(
+        entity for entity in entities if entity.unique_id.endswith("_temperature_adjusted_fill_level")
+    )
+    state = hass.states.get(adjusted_entity.entity_id)
+    assert state is not None
+    return float(state.state)
+
+
+async def test_sensor_temperature_lag_uses_delayed_reading(hass: HomeAssistant) -> None:
+    """A configured lag compensates against the delayed (bulk) temperature, not the latest reading."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+
+    start = dt_util.utcnow().replace(microsecond=0)
+    with freeze_time(start) as frozen:
+        hass.states.async_set("sensor.fill_height", "12.0")  # 50% at diameter 24
+        hass.states.async_set(
+            "sensor.lp_temp",
+            "60.0",  # reference temperature -> no adjustment initially
+            {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+        )
+
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            title="Lag Tank",
+            data={
+                CONF_NAME: "Lag Tank",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_DIAMETER: 24.0,
+                CONF_TEMPERATURE_ENTITY: "sensor.lp_temp",
+                CONF_END_CAP_TYPE: END_CAP_FLAT,
+                CONF_TANK_VOLUME: 250.0,
+                CONF_ADJUSTMENT_COEFFICIENT: 0.003,
+                CONF_TEMPERATURE_LAG_HOURS: 1.0,
+                CONF_TEMPERATURE_LAG_PER_DEGREE: 0.0,  # pin a constant 1 h lag for a deterministic check
+                CONF_TEMPERATURE_SMOOTHING_HOURS: 0.0,
+            },
+            unique_id="sensor.fill_height",
+        )
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Two hours later the sensor reports 100 F, but the bulk temperature one hour
+        # ago (the lag target) is halfway between 60 and 100 -> 80 F.
+        frozen.move_to(start + timedelta(hours=2))
+        hass.states.async_set(
+            "sensor.lp_temp",
+            "100.0",
+            {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+        )
+        await hass.async_block_till_done()
+
+        adjusted = await _adjusted_fill_value(hass, entry)
+
+    # Compensation should use ~80 F (delayed), i.e. 50 / (1 + 0.003 * 20) = 50 / 1.06 ...
+    assert abs(adjusted - (50.0 / 1.06)) < 0.3
+    # ... and NOT the instantaneous 100 F, which would give 50 / 1.12.
+    assert abs(adjusted - (50.0 / 1.12)) > 0.3
+
+
+async def test_sensor_temperature_lag_zero_uses_instantaneous(hass: HomeAssistant) -> None:
+    """Lag 0 disables the estimator and reproduces instantaneous compensation."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+
+    hass.states.async_set("sensor.fill_height", "12.0")
+    hass.states.async_set(
+        "sensor.lp_temp",
+        "80.0",
+        {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="No Lag Tank",
+        data={
+            CONF_NAME: "No Lag Tank",
+            CONF_SOURCE_ENTITY: "sensor.fill_height",
+            CONF_TANK_DIAMETER: 24.0,
+            CONF_TEMPERATURE_ENTITY: "sensor.lp_temp",
+            CONF_END_CAP_TYPE: END_CAP_FLAT,
+            CONF_TANK_VOLUME: 250.0,
+            CONF_ADJUSTMENT_COEFFICIENT: 0.003,
+            CONF_TEMPERATURE_LAG_HOURS: 0.0,
+            CONF_TEMPERATURE_LAG_PER_DEGREE: 0.0,  # both zero -> estimator disabled (instantaneous)
+        },
+        unique_id="sensor.fill_height",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    adjusted_entity = next(
+        entity for entity in entities if entity.unique_id.endswith("_temperature_adjusted_fill_level")
+    )
+    state = hass.states.get(adjusted_entity.entity_id)
+    assert state is not None
+    # 80 F instantaneous -> 50 / (1 + 0.003 * 20) = 50 / 1.06.
+    assert abs(float(state.state) - (50.0 / 1.06)) < 0.1
+    # Estimator disabled -> no lag diagnostics on the entity.
+    assert "temperature_lag_hours" not in state.attributes
+
+
+async def test_sensor_temperature_lag_exposes_attributes(hass: HomeAssistant) -> None:
+    """With a lag configured, the adjusted sensor exposes lag diagnostics."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+
+    hass.states.async_set("sensor.fill_height", "12.0")
+    hass.states.async_set(
+        "sensor.lp_temp",
+        "70.0",
+        {"unit_of_measurement": UnitOfTemperature.FAHRENHEIT},
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Attr Tank",
+        data={
+            CONF_NAME: "Attr Tank",
+            CONF_SOURCE_ENTITY: "sensor.fill_height",
+            CONF_TANK_DIAMETER: 24.0,
+            CONF_TEMPERATURE_ENTITY: "sensor.lp_temp",
+            CONF_END_CAP_TYPE: END_CAP_FLAT,
+            CONF_TANK_VOLUME: 250.0,
+            CONF_TEMPERATURE_LAG_HOURS: 6.0,
+            CONF_TEMPERATURE_LAG_PER_DEGREE: 0.067,
+            CONF_TEMPERATURE_SMOOTHING_HOURS: 1.0,
+        },
+        unique_id="sensor.fill_height",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    adjusted_entity = next(
+        entity for entity in entities if entity.unique_id.endswith("_temperature_adjusted_fill_level")
+    )
+    state = hass.states.get(adjusted_entity.entity_id)
+    assert state is not None
+    assert state.attributes["temperature_lag_hours"] == 6.0
+    assert state.attributes["temperature_lag_per_degree"] == 0.067
+    assert state.attributes["temperature_smoothing_hours"] == 1.0
+    assert "bulk_temperature_f" in state.attributes
+    # 70 F is 10 F above the 60 F reference -> effective lag ~ 6 + 0.067*10 = 6.67 h.
+    assert abs(state.attributes["effective_lag_hours"] - 6.67) < 0.3

@@ -18,7 +18,12 @@ from custom_components.tank_volume.const import (
     CONF_TANK_DIAMETER,
     CONF_TANK_TOTAL_LENGTH,
     CONF_TANK_VOLUME,
+    CONF_TEMPERATURE_LAG_HOURS,
+    CONF_TEMPERATURE_LAG_PER_DEGREE,
+    CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_TEMPERATURE_LAG_HOURS,
+    DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
     DOMAIN,
 )
 from homeassistant import config_entries
@@ -395,3 +400,108 @@ async def test_options_flow_preset_overrides_details(hass: HomeAssistant) -> Non
     diameter_selector = _get_schema_selector(schema, CONF_TANK_DIAMETER)
     assert diameter_selector is not None
     assert _get_selector_read_only(diameter_selector) is True
+
+
+async def test_form_persists_temperature_lag(hass: HomeAssistant) -> None:
+    """The user step defaults the lag fields and persists explicit values."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+
+    with patch("custom_components.tank_volume.async_setup_entry", return_value=True):
+        # Omit the lag fields -> defaults are stored.
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_NAME: "Default Lag",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_CAPACITY: CAPACITY_CUSTOM,
+            },
+        )
+        result3 = await hass.config_entries.flow.async_configure(
+            result2["flow_id"],
+            {CONF_TANK_DIAMETER: 24.0, CONF_TANK_TOTAL_LENGTH: 120.0, CONF_TANK_VOLUME: 250.0},
+        )
+        await hass.async_block_till_done()
+
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"][CONF_TEMPERATURE_LAG_HOURS] == DEFAULT_TEMPERATURE_LAG_HOURS
+    assert result3["data"][CONF_TEMPERATURE_SMOOTHING_HOURS] == DEFAULT_TEMPERATURE_SMOOTHING_HOURS
+
+
+async def test_form_explicit_temperature_lag(hass: HomeAssistant) -> None:
+    """Explicit lag/smoothing values from the user step are stored."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+
+    with patch("custom_components.tank_volume.async_setup_entry", return_value=True):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_NAME: "Explicit Lag",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_CAPACITY: CAPACITY_CUSTOM,
+                CONF_TEMPERATURE_LAG_HOURS: 7.0,
+                CONF_TEMPERATURE_SMOOTHING_HOURS: 0.0,
+            },
+        )
+        result3 = await hass.config_entries.flow.async_configure(
+            result2["flow_id"],
+            {CONF_TANK_DIAMETER: 24.0, CONF_TANK_TOTAL_LENGTH: 120.0, CONF_TANK_VOLUME: 250.0},
+        )
+        await hass.async_block_till_done()
+
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"][CONF_TEMPERATURE_LAG_HOURS] == 7.0
+    assert result3["data"][CONF_TEMPERATURE_SMOOTHING_HOURS] == 0.0
+
+
+async def test_options_flow_updates_temperature_lag(hass: HomeAssistant) -> None:
+    """The options flow can change the temperature lag."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Test Tank",
+        data={
+            CONF_NAME: "Test Tank",
+            CONF_SOURCE_ENTITY: "sensor.fill_height",
+            CONF_TANK_DIAMETER: 24.0,
+        },
+        options={},
+        unique_id="sensor.fill_height",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={CONF_TANK_CAPACITY: CAPACITY_CUSTOM, CONF_TEMPERATURE_LAG_HOURS: 8.0},
+    )
+    result3 = await hass.config_entries.options.async_configure(
+        result2["flow_id"],
+        user_input={CONF_TANK_DIAMETER: 36.0, CONF_TANK_TOTAL_LENGTH: 120.0, CONF_TANK_VOLUME: 250.0},
+    )
+
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"][CONF_TEMPERATURE_LAG_HOURS] == 8.0
+    assert result3["data"][CONF_TEMPERATURE_SMOOTHING_HOURS] == DEFAULT_TEMPERATURE_SMOOTHING_HOURS
+
+
+async def test_form_persists_lag_slope(hass: HomeAssistant) -> None:
+    """The user step defaults the temperature-dependent lag slope and persists explicit values."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    with patch("custom_components.tank_volume.async_setup_entry", return_value=True):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_NAME: "Slope Tank",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_CAPACITY: CAPACITY_CUSTOM,
+                CONF_TEMPERATURE_LAG_PER_DEGREE: 0.1,
+            },
+        )
+        result3 = await hass.config_entries.flow.async_configure(
+            result2["flow_id"],
+            {CONF_TANK_DIAMETER: 24.0, CONF_TANK_TOTAL_LENGTH: 120.0, CONF_TANK_VOLUME: 250.0},
+        )
+        await hass.async_block_till_done()
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"][CONF_TEMPERATURE_LAG_PER_DEGREE] == 0.1
+    # lag hours still defaulted
+    assert result3["data"][CONF_TEMPERATURE_LAG_HOURS] == DEFAULT_TEMPERATURE_LAG_HOURS

@@ -99,6 +99,58 @@ You can modify the tank parameters after setup:
 3. Click **Configure**
 4. Update the values as needed
 
+## Temperature Compensation
+
+Propane expands and contracts with temperature, so the measured liquid level (and
+therefore the calculated volume) drifts with the weather even when no gas is being
+consumed. If you provide an optional **temperature sensor**, the integration adds two
+extra `... (temperature adjusted)` sensors that normalise the reading to a reference
+temperature of 60 °F (15.6 °C).
+
+Four settings control the correction:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| **Temperature adjustment coefficient** | `0.0022` /°F | Effective volumetric expansion coefficient. `ΔV/V ≈ coefficient × ΔT`. Because the correction scales a percentage of volume, it automatically tracks how full the tank is. |
+| **Temperature lag at 60 °F (hours)** | `5` | The transport delay applied to the temperature at the 60 °F reference. |
+| **Temperature lag slope (hours per °F)** | `0.067` | How much that delay grows per °F of *seasonal* temperature above 60 °F. |
+| **Temperature smoothing (hours)** | `1` | Averaging window applied around the delayed reading to suppress sensor noise. |
+
+### Why the lag matters, and why it is temperature dependent
+
+The propane's *bulk* temperature — the thing that actually drives expansion — is a
+**delayed, low-passed** version of what the sensor reports. A Mopeka-style sensor is
+clamped to the *outside* of the tank bottom, so it tracks the tank skin / ambient, which
+changes faster than the bulk liquid. The reported temperature therefore *leads* the
+volume response, and compensating against the *instantaneous* reading corrects at the
+wrong phase — it can make the daily swing *worse*.
+
+A full year of tank data (4–84 °F, a wide range of fill levels) shows the lead is
+**strongly temperature dependent** and — once temperature is held fixed — **independent
+of how full the tank is**:
+
+```
+lag_hours ≈ 5.0 + 0.067 × (T_seasonal − 60 °F)     # ~2–3 h cold, ~6–7 h warm
+```
+
+The integration reconstructs the bulk temperature by looking back this
+temperature-dependent delay (the delay is chosen from a slow, ~24 h seasonal temperature
+average so it doesn't wobble with the daily cycle) plus a small smoothing window, then
+applies the expansion correction. In field data this flattens the repeatable daily volume
+swing from ~7 gal to ~1–2 gal on a 500 gal tank across the whole year — and, unlike a
+fixed lag, it does **not** degrade in winter (a fixed 5 h lag applied in cold weather is
+worse than no correction at all).
+
+Set **Temperature lag slope** to `0` for a constant lag, and both the lag and slope to `0`
+to disable the delay entirely and use the instantaneous reading (the pre-1.1 behaviour).
+
+**Tuning:** the coefficient and lag depend on your sensor. To calibrate, chart a
+`... (temperature adjusted)` sensor over a few clear days during a period of little or no
+usage and adjust the settings until the daily curve is as flat as possible. The adjusted
+sensors expose `temperature_lag_hours`, `temperature_lag_per_degree`,
+`temperature_smoothing_hours`, the current `effective_lag_hours`, and the
+`bulk_temperature_f` estimate as attributes to help.
+
 ## Standard LP Tank Specifications
 
 Based on common residential propane tank dimensions:

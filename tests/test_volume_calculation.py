@@ -263,6 +263,7 @@ def test_temperature_compensation_fahrenheit():
         base_percentage,
         80.0,
         UnitOfTemperature.FAHRENHEIT,
+        0.003,  # explicit coefficient so the check is independent of the default
     )
 
     assert adjusted is not None
@@ -276,6 +277,7 @@ def test_temperature_compensation_celsius():
         base_percentage,
         30.0,
         UnitOfTemperature.CELSIUS,
+        0.003,  # explicit coefficient so the check is independent of the default
     )
 
     assert adjusted is not None

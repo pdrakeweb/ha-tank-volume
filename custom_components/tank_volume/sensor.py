@@ -13,6 +13,7 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_ADJUSTMENT_COEFFICIENT,
@@ -23,13 +24,25 @@ from .const import (
     CONF_TANK_TOTAL_LENGTH,
     CONF_TANK_VOLUME,
     CONF_TEMPERATURE_ENTITY,
+    CONF_TEMPERATURE_LAG_HOURS,
+    CONF_TEMPERATURE_LAG_PER_DEGREE,
+    CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_TEMPERATURE_LAG_HOURS,
+    DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
+    DEFAULT_TEMPERATURE_SMOOTHING_HOURS,
     DOMAIN,
     END_CAP_ELLIPSOIDAL_2_1,
     END_CAP_FLAT,
+    MAX_TEMPERATURE_LAG_HOURS,
+    MIN_TEMPERATURE_LAG_HOURS,
     PROPANE_EXPANSION_COEFFICIENT_F,
     REFERENCE_TEMPERATURE_F,
+    TEMPERATURE_LAG_SEASON_TIME_CONSTANT_HOURS,
 )
+from .temperature import BulkTemperatureEstimator
+
+SECONDS_PER_HOUR = 3600.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -240,6 +253,18 @@ async def async_setup_entry(
         CONF_ADJUSTMENT_COEFFICIENT,
         config_entry.data.get(CONF_ADJUSTMENT_COEFFICIENT, DEFAULT_ADJUSTMENT_COEFFICIENT),
     )
+    temperature_lag_hours = config_entry.options.get(
+        CONF_TEMPERATURE_LAG_HOURS,
+        config_entry.data.get(CONF_TEMPERATURE_LAG_HOURS, DEFAULT_TEMPERATURE_LAG_HOURS),
+    )
+    temperature_lag_per_degree = config_entry.options.get(
+        CONF_TEMPERATURE_LAG_PER_DEGREE,
+        config_entry.data.get(CONF_TEMPERATURE_LAG_PER_DEGREE, DEFAULT_TEMPERATURE_LAG_PER_DEGREE),
+    )
+    temperature_smoothing_hours = config_entry.options.get(
+        CONF_TEMPERATURE_SMOOTHING_HOURS,
+        config_entry.data.get(CONF_TEMPERATURE_SMOOTHING_HOURS, DEFAULT_TEMPERATURE_SMOOTHING_HOURS),
+    )
 
     # Get end cap configuration
     end_cap_type = config_entry.options.get(
@@ -297,6 +322,9 @@ async def async_setup_entry(
                     cylinder_length,
                     adjustment_coefficient,
                     apply_temperature_compensation=True,
+                    temperature_lag_hours=temperature_lag_hours,
+                    temperature_lag_per_degree=temperature_lag_per_degree,
+                    temperature_smoothing_hours=temperature_smoothing_hours,
                 ),
                 TankVolumeSensor(
                     config_entry.entry_id,
@@ -312,6 +340,9 @@ async def async_setup_entry(
                     cylinder_length,
                     adjustment_coefficient,
                     apply_temperature_compensation=True,
+                    temperature_lag_hours=temperature_lag_hours,
+                    temperature_lag_per_degree=temperature_lag_per_degree,
+                    temperature_smoothing_hours=temperature_smoothing_hours,
                 ),
             ]
         )
@@ -342,6 +373,9 @@ class TankVolumeSensor(SensorEntity):
         cylinder_length: float | None = None,
         adjustment_coefficient: float = DEFAULT_ADJUSTMENT_COEFFICIENT,
         apply_temperature_compensation: bool = False,
+        temperature_lag_hours: float = 0.0,
+        temperature_lag_per_degree: float = 0.0,
+        temperature_smoothing_hours: float = 0.0,
     ) -> None:
         """Initialize the sensor."""
         self._entry_id = entry_id
@@ -357,9 +391,29 @@ class TankVolumeSensor(SensorEntity):
         self._end_cap_type = end_cap_type
         self._cylinder_length = cylinder_length
         self._adjustment_coefficient = adjustment_coefficient
+        self._temperature_lag_hours = max(0.0, temperature_lag_hours or 0.0)
+        self._temperature_lag_per_degree = temperature_lag_per_degree or 0.0
+        self._temperature_smoothing_hours = max(0.0, temperature_smoothing_hours or 0.0)
         self._fill_height: float | None = None
         self._temperature_value: float | None = None
         self._temperature_unit: UnitOfTemperature | None = None
+        # Estimator reconstructs the lagged bulk temperature that actually drives the
+        # liquid's expansion. The transport delay is temperature dependent (it grows in
+        # warmer weather). Only built when compensation is active and some lag is
+        # configured; otherwise the instantaneous reading is used.
+        self._temperature_estimator: BulkTemperatureEstimator | None = None
+        if self._apply_temperature_compensation and (
+            self._temperature_lag_hours > 0.0 or self._temperature_lag_per_degree != 0.0
+        ):
+            self._temperature_estimator = BulkTemperatureEstimator(
+                lag_seconds=self._temperature_lag_hours * SECONDS_PER_HOUR,
+                smoothing_seconds=self._temperature_smoothing_hours * SECONDS_PER_HOUR,
+                lag_slope_seconds_per_degree=self._temperature_lag_per_degree * SECONDS_PER_HOUR,
+                reference_temperature=REFERENCE_TEMPERATURE_F,
+                min_lag_seconds=MIN_TEMPERATURE_LAG_HOURS * SECONDS_PER_HOUR,
+                max_lag_seconds=MAX_TEMPERATURE_LAG_HOURS * SECONDS_PER_HOUR,
+                season_time_constant_seconds=TEMPERATURE_LAG_SEASON_TIME_CONSTANT_HOURS * SECONDS_PER_HOUR,
+            )
         if self._measurement_type == MEASUREMENT_CONTENTS_VOLUME:
             unique_suffix = "contents_volume"
         else:
@@ -401,6 +455,17 @@ class TankVolumeSensor(SensorEntity):
             attrs["temperature_unit"] = self._temperature_unit
         if self._apply_temperature_compensation:
             attrs["temperature_adjusted"] = True
+            if self._temperature_estimator is not None:
+                attrs["temperature_lag_hours"] = self._temperature_lag_hours
+                attrs["temperature_lag_per_degree"] = self._temperature_lag_per_degree
+                attrs["temperature_smoothing_hours"] = self._temperature_smoothing_hours
+                # Effective (temperature-dependent) lag currently in effect.
+                attrs["effective_lag_hours"] = round(
+                    self._temperature_estimator.current_lag_seconds() / SECONDS_PER_HOUR, 2
+                )
+                estimate = self._temperature_estimator.estimate(dt_util.utcnow().timestamp())
+                if estimate is not None:
+                    attrs["bulk_temperature_f"] = round(estimate, 2)
         if self._cylinder_length is not None:
             attrs["cylinder_length_inches"] = self._cylinder_length
         return attrs
@@ -471,11 +536,39 @@ class TankVolumeSensor(SensorEntity):
             return
 
         try:
-            self._temperature_value = float(state.state)
-            self._temperature_unit = UnitOfTemperature(unit)
+            value = float(state.state)
         except (ValueError, TypeError):
             self._temperature_value = None
             self._temperature_unit = None
+            return
+
+        self._temperature_value = value
+        self._temperature_unit = UnitOfTemperature(unit)
+
+        # Feed the lag estimator, normalising to Fahrenheit for a single internal unit.
+        if self._temperature_estimator is not None:
+            temperature_f = (
+                value if self._temperature_unit == UnitOfTemperature.FAHRENHEIT else value * 9.0 / 5.0 + 32.0
+            )
+            timestamp = (
+                state.last_updated.timestamp() if state.last_updated is not None else dt_util.utcnow().timestamp()
+            )
+            self._temperature_estimator.add(timestamp, temperature_f)
+
+    def _effective_temperature(self) -> tuple[float | None, UnitOfTemperature | None]:
+        """Return the temperature used for compensation.
+
+        When a lag estimator is active it returns the estimated bulk temperature in
+        Fahrenheit; otherwise (lag disabled or estimator not yet seeded) it falls back
+        to the latest instantaneous reading, preserving the legacy behaviour.
+        """
+        if self._temperature_estimator is not None:
+            estimate = self._temperature_estimator.estimate(dt_util.utcnow().timestamp())
+            if estimate is not None:
+                return estimate, UnitOfTemperature.FAHRENHEIT
+        if self._temperature_value is not None and self._temperature_unit is not None:
+            return self._temperature_value, self._temperature_unit
+        return None, None
 
     def _recalculate_value(self) -> None:
         """Recalculate fill level or contents volume using current fill height and temperature."""
@@ -498,14 +591,16 @@ class TankVolumeSensor(SensorEntity):
             self._attr_native_value = None
             return
 
-        if self._apply_temperature_compensation and self._temperature_value is not None and self._temperature_unit:
-            adjusted = compute_temperature_compensated_percentage(
-                percentage,
-                self._temperature_value,
-                self._temperature_unit,
-                self._adjustment_coefficient,
-            )
-            percentage = adjusted if adjusted is not None else percentage
+        if self._apply_temperature_compensation:
+            effective_temp, effective_unit = self._effective_temperature()
+            if effective_temp is not None and effective_unit is not None:
+                adjusted = compute_temperature_compensated_percentage(
+                    percentage,
+                    effective_temp,
+                    effective_unit,
+                    self._adjustment_coefficient,
+                )
+                percentage = adjusted if adjusted is not None else percentage
 
         if self._measurement_type == MEASUREMENT_CONTENTS_VOLUME:
             if self._tank_volume is None or self._tank_volume <= 0:

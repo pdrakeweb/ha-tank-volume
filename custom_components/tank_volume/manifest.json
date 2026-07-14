@@ -1,7 +1,7 @@
 {
   "domain": "tank_volume",
   "name": "Tank Volume Calculator",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "documentation": "https://github.com/pdrakeweb/ha-tank-volume",
   "issue_tracker": "https://github.com/pdrakeweb/ha-tank-volume/issues",
   "requirements": [],
