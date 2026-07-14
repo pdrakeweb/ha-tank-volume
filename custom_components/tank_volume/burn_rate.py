@@ -50,13 +50,21 @@ class BurnRateCalculator:
         refill_threshold: float = 30.0,
         min_samples: int = 6,
         min_span_fraction: float = 0.5,
+        weight_half_life_seconds: float | None = None,
         history_margin_seconds: float = 3600.0,
     ) -> None:
-        """Initialize the calculator."""
+        """Initialize the calculator.
+
+        When ``weight_half_life_seconds`` is set, the trend is a *weighted* least-squares
+        fit whose weights halve every ``weight_half_life_seconds`` back from ``now`` — so
+        recent readings dominate and the estimate reacts faster to a change in usage while
+        still averaging over the whole window. ``None`` uses a uniform (unweighted) fit.
+        """
         self._window = max(1.0, window_seconds)
         self._refill = refill_threshold
         self._min_samples = max(2, min_samples)
         self._min_span = min_span_fraction * self._window
+        self._half_life = weight_half_life_seconds if (weight_half_life_seconds or 0) > 0 else None
         self._margin = max(0.0, history_margin_seconds)
         self._samples: deque[_Sample] = deque()
 
@@ -105,21 +113,29 @@ class BurnRateCalculator:
         if span < self._min_span or span <= 0:
             return None
 
-        slope = _ols_slope(seg)  # units per second (negative while consuming)
+        weights = None
+        if self._half_life is not None:
+            weights = [0.5 ** ((now - s.t) / self._half_life) for s in seg]
+        slope = _ols_slope(seg, weights)  # units per second (negative while consuming)
         if slope is None:
             return None
         return max(0.0, -slope * SECONDS_PER_DAY)
 
 
-def _ols_slope(samples: list[_Sample]) -> float | None:
-    """Ordinary-least-squares slope (value per second) of value vs time."""
+def _ols_slope(samples: list[_Sample], weights: list[float] | None = None) -> float | None:
+    """(Optionally weighted) least-squares slope (value per second) of value vs time."""
     n = len(samples)
     t0 = samples[0].t
     xs = [s.t - t0 for s in samples]
     ys = [s.value for s in samples]
-    mx = sum(xs) / n
-    my = sum(ys) / n
-    den = sum((x - mx) ** 2 for x in xs)
+    if weights is None:
+        weights = [1.0] * n
+    sw = sum(weights)
+    if sw <= 0:
+        return None
+    mx = sum(weights[i] * xs[i] for i in range(n)) / sw
+    my = sum(weights[i] * ys[i] for i in range(n)) / sw
+    den = sum(weights[i] * (xs[i] - mx) ** 2 for i in range(n))
     if den == 0:
         return None
-    return sum((xs[i] - mx) * (ys[i] - my) for i in range(n)) / den
+    return sum(weights[i] * (xs[i] - mx) * (ys[i] - my) for i in range(n)) / den

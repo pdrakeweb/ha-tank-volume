@@ -19,6 +19,7 @@ from .const import (
     CAPACITY_1000,
     CAPACITY_CUSTOM,
     CONF_ADJUSTMENT_COEFFICIENT,
+    CONF_BURN_RATE_WEIGHTED,
     CONF_BURN_RATE_WINDOW_DAYS,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
@@ -34,6 +35,7 @@ from .const import (
     CONF_TEMPERATURE_LAG_PER_DEGREE,
     CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_BURN_RATE_WEIGHTED,
     DEFAULT_BURN_RATE_WINDOW_DAYS,
     DEFAULT_END_CAP_TYPE,
     DEFAULT_NAME,
@@ -338,7 +340,11 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
             )
             user_input.setdefault(
                 CONF_BURN_RATE_WINDOW_DAYS,
-                DEFAULT_BURN_RATE_WINDOW_DAYS,
+                str(int(DEFAULT_BURN_RATE_WINDOW_DAYS)),
+            )
+            user_input.setdefault(
+                CONF_BURN_RATE_WEIGHTED,
+                DEFAULT_BURN_RATE_WEIGHTED,
             )
             user_input.setdefault(
                 CONF_PROPANE_PRICE,
@@ -382,9 +388,19 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 DEFAULT_TEMPERATURE_LAG_PER_DEGREE,
             ),
         )
-        current_window_days = self.config_entry.options.get(
-            CONF_BURN_RATE_WINDOW_DAYS,
-            self.config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+        current_window_days = str(
+            int(
+                float(
+                    self.config_entry.options.get(
+                        CONF_BURN_RATE_WINDOW_DAYS,
+                        self.config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+                    )
+                )
+            )
+        )
+        current_weighted = self.config_entry.options.get(
+            CONF_BURN_RATE_WEIGHTED,
+            self.config_entry.data.get(CONF_BURN_RATE_WEIGHTED, DEFAULT_BURN_RATE_WEIGHTED),
         )
         current_price = self.config_entry.options.get(
             CONF_PROPANE_PRICE,
@@ -480,11 +496,20 @@ class TankVolumeOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_BURN_RATE_WINDOW_DAYS,
                     default=current_window_days,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=1.0, step=1.0, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="d"
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": "1", "label": "24 hours"},
+                            {"value": "3", "label": "3 days"},
+                            {"value": "7", "label": "7 days"},
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Optional(
+                    CONF_BURN_RATE_WEIGHTED,
+                    default=current_weighted,
+                ): selector.BooleanSelector(),
                 vol.Optional(
                     CONF_PROPANE_PRICE,
                     default=current_price,

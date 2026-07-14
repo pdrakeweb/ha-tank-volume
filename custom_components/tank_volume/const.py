@@ -17,9 +17,14 @@ CONF_TEMPERATURE_LAG_HOURS = "temperature_lag_hours"
 CONF_TEMPERATURE_LAG_PER_DEGREE = "temperature_lag_per_degree"
 CONF_TEMPERATURE_SMOOTHING_HOURS = "temperature_smoothing_hours"
 CONF_BURN_RATE_WINDOW_DAYS = "burn_rate_window_days"
+CONF_BURN_RATE_WEIGHTED = "burn_rate_weighted"
 CONF_PROPANE_PRICE = "propane_price_per_gallon"
 CONF_PRICE_ENTITY = "price_entity"
 CONF_REFILL_THRESHOLD = "refill_threshold_gallons"
+
+# Burn-rate averaging window presets (days). A dropdown, because these map to distinct
+# responsiveness/stability trade-offs rather than a free-form number.
+BURN_RATE_WINDOW_OPTIONS = ["1", "3", "7"]
 
 # End cap types
 END_CAP_FLAT = "flat"
@@ -83,7 +88,12 @@ TEMPERATURE_LAG_SEASON_TIME_CONSTANT_HOURS = 24.0
 # noise at low consumption and by weather variability at high consumption, so the monthly
 # extrapolation swings wildly; ~7 days averages that out into a stable estimate. Refills
 # (a large upward jump) are detected and the trend is measured only since the last refill.
-DEFAULT_BURN_RATE_WINDOW_DAYS = 7.0
+DEFAULT_BURN_RATE_WINDOW_DAYS = 3.0
+DEFAULT_BURN_RATE_WEIGHTED = False
+# When weighted, the trend's weights halve every window/this-many back from now, so recent
+# readings dominate (responsive) while the whole window still contributes (smooth). ~/6 puts
+# a 7-day window between the stability of 7 days and the responsiveness of 3 days.
+BURN_RATE_WEIGHT_HALF_LIFE_DIVISOR = 6.0
 DEFAULT_REFILL_THRESHOLD_GALLONS = 30.0
 DEFAULT_PROPANE_PRICE = 0.0  # $/gal; 0 means "not set" -> the cost sensor is unavailable
 

@@ -174,9 +174,13 @@ Settings (in the integration's **Configure** / options):
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| **Burn-rate averaging window (days)** | `7` | How many days of the volume trend to average. Shorter reacts faster but is noisier; **3 days is too short to give a stable monthly estimate**. |
+| **Burn-rate averaging window** | `3 days` | `24 hours`, `3 days`, or `7 days`. Shorter reacts faster to a weather change but is noisier; longer is steadier but slower. |
+| **Weight recent readings more** | off | Recency-weights the trend within the window (weights halve every window/6 back), so it reacts faster while still smoothing. A weighted 7-day window lands between the stability of 7 days and the responsiveness of 3. |
 | **Propane price per gallon** | `0` | Fixed price for the cost sensor. `0` leaves the cost sensor unavailable unless a price entity is set. |
 | **Price per gallon entity** | — | Optional `input_number`/`sensor` giving the current price. If set, it overrides the fixed price. |
+
+Roughly, on this tank's data (monthly-cost stability / days to react to a 2→6 gal/day step):
+`24 h` ≈ ±$350 / 0.8 d · `3 days` ≈ ±$190 / 2.3 d · `7 days` ≈ ±$145 / 5.3 d · `7 days weighted` ≈ ±$166 / 4.2 d.
 
 At low consumption (e.g. summer) the tank is nearly flat and the true burn can be below the
 sensor's noise floor, so the estimate is inherently uncertain then — but the dollar amounts

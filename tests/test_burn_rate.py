@@ -77,3 +77,35 @@ def test_window_prunes_old_samples():
     _feed(calc, 300.0, 2.0, days=10)
     # Buffer should be bounded to ~window + margin, not all 10 days.
     assert calc.coverage_seconds <= 2 * DAY + 3600.0 + 3600.0
+
+
+def test_weighted_recovers_steady_rate():
+    """A weighted fit still recovers a steady rate accurately."""
+    calc = BurnRateCalculator(window_seconds=7 * DAY, weight_half_life_seconds=7 * DAY / 6)
+    t = _feed(calc, 300.0, 2.0, days=10)
+    assert abs(calc.daily_burn(t) - 2.0) < 0.1
+
+
+def test_weighted_reacts_faster_to_a_step():
+    """After a step from 2 -> 6 gal/day, the weighted fit rises above the unweighted one."""
+    hl = 7 * DAY / 6
+    weighted = BurnRateCalculator(window_seconds=7 * DAY, weight_half_life_seconds=hl, min_span_fraction=0.4)
+    uniform = BurnRateCalculator(window_seconds=7 * DAY, min_span_fraction=0.4)
+    # 15 days at 2 gal/day, then 2 days at 6 gal/day.
+    t = 0.0
+    v = 300.0
+    for i in range(15 * 24):
+        t = i * 3600.0
+        v = 300.0 - 2.0 * (t / DAY)
+        weighted.add(t, v)
+        uniform.add(t, v)
+    tstep = t
+    for i in range(1, 2 * 24):
+        t = tstep + i * 3600.0
+        v -= 6.0 / 24
+        weighted.add(t, v)
+        uniform.add(t, v)
+    burn_weighted = weighted.daily_burn(t)
+    burn_uniform = uniform.daily_burn(t)
+    assert burn_weighted is not None and burn_uniform is not None
+    assert burn_weighted > burn_uniform  # recent-weighted picks up the new higher rate sooner

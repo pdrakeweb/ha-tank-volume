@@ -19,7 +19,9 @@ from homeassistant.util import dt as dt_util
 
 from .burn_rate import BurnRateCalculator
 from .const import (
+    BURN_RATE_WEIGHT_HALF_LIFE_DIVISOR,
     CONF_ADJUSTMENT_COEFFICIENT,
+    CONF_BURN_RATE_WEIGHTED,
     CONF_BURN_RATE_WINDOW_DAYS,
     CONF_CYLINDER_LENGTH,
     CONF_END_CAP_TYPE,
@@ -35,6 +37,7 @@ from .const import (
     CONF_TEMPERATURE_LAG_PER_DEGREE,
     CONF_TEMPERATURE_SMOOTHING_HOURS,
     DEFAULT_ADJUSTMENT_COEFFICIENT,
+    DEFAULT_BURN_RATE_WEIGHTED,
     DEFAULT_BURN_RATE_WINDOW_DAYS,
     DEFAULT_PROPANE_PRICE,
     DEFAULT_REFILL_THRESHOLD_GALLONS,
@@ -366,9 +369,15 @@ async def async_setup_entry(
     # volume is configured. They track the temperature-adjusted contents-volume entity
     # if temperature compensation is active, else the plain contents-volume entity.
     if tank_volume:
-        window_days = config_entry.options.get(
-            CONF_BURN_RATE_WINDOW_DAYS,
-            config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+        window_days = float(
+            config_entry.options.get(
+                CONF_BURN_RATE_WINDOW_DAYS,
+                config_entry.data.get(CONF_BURN_RATE_WINDOW_DAYS, DEFAULT_BURN_RATE_WINDOW_DAYS),
+            )
+        )
+        weighted = config_entry.options.get(
+            CONF_BURN_RATE_WEIGHTED,
+            config_entry.data.get(CONF_BURN_RATE_WEIGHTED, DEFAULT_BURN_RATE_WEIGHTED),
         )
         refill_threshold = config_entry.options.get(
             CONF_REFILL_THRESHOLD,
@@ -385,9 +394,11 @@ async def async_setup_entry(
         contents_suffix = "temperature_adjusted_contents_volume" if temperature_entity else "contents_volume"
         source_unique_id = f"{config_entry.entry_id}_{contents_suffix}"
         currency = hass.config.currency or "USD"
+        window_seconds = window_days * SECONDS_PER_DAY
         calculator = BurnRateCalculator(
-            window_seconds=window_days * SECONDS_PER_DAY,
+            window_seconds=window_seconds,
             refill_threshold=refill_threshold,
+            weight_half_life_seconds=(window_seconds / BURN_RATE_WEIGHT_HALF_LIFE_DIVISOR) if weighted else None,
         )
         burn_sensors = [
             TankBurnSensor(config_entry.entry_id, name, BURN_DAILY, calculator, source_unique_id),
