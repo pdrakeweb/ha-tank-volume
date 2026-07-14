@@ -420,6 +420,26 @@ From the Command Palette (Tasks: Run Task):
 ./script/check
 ```
 
+### Releasing (HACS)
+
+Releases are published as GitHub Releases with the integration attached as a clean
+`tank_volume.zip` (`hacs.json` sets `zip_release`), which is what HACS downloads for
+everyone who has the integration installed.
+
+From a green `main` (the Validate workflow runs on every push):
+
+```bash
+./script/release            # tag & release the version currently in manifest.json
+./script/release 1.4.1      # bump manifest to 1.4.1, commit "Release v1.4.1", then release
+./script/release --dry-run  # build the zip and run checks only (no tag/push)
+```
+
+The script verifies a clean state and that the tag doesn't already exist, builds a local
+`dist/tank_volume.zip` so you can inspect exactly what ships, then creates and pushes the
+`vX.Y.Z` tag. Pushing the tag triggers `.github/workflows/release.yml`, which rebuilds the
+zip in CI, verifies it matches `manifest.json`, and publishes the GitHub Release. HACS then
+offers the new version to installed users. **The tag must equal the manifest `version`.**
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

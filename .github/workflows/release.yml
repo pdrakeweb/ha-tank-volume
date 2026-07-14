@@ -1,0 +1,54 @@
+name: Release
+
+# Publishes a GitHub Release (which HACS installs) whenever a vX.Y.Z tag is pushed.
+# The integration is shipped as a clean zip asset (hacs.json has zip_release + filename),
+# so HACS downloads tank_volume.zip and extracts it into custom_components/tank_volume/.
+#
+# Release with:  ./script/release            (uses the version in manifest.json)
+#            or:  ./script/release X.Y.Z      (bumps manifest, commits, then tags)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  DOMAIN: tank_volume
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the tag
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Verify manifest version matches the tag
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(jq -r .version "custom_components/${DOMAIN}/manifest.json")"
+          echo "tag=${tag_version} manifest=${manifest_version}"
+          if [ "${tag_version}" != "${manifest_version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest version ${manifest_version}."
+            exit 1
+          fi
+
+      - name: Build the release zip
+        run: |
+          # Contents at the zip root -> HACS extracts them into custom_components/<domain>/
+          cd "custom_components/${DOMAIN}"
+          zip --recurse-paths "${GITHUB_WORKSPACE}/${DOMAIN}.zip" . \
+            --exclude '*__pycache__*' '*.pyc'
+          unzip -l "${GITHUB_WORKSPACE}/${DOMAIN}.zip"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${DOMAIN}.zip" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

@@ -2,6 +2,8 @@
   "name": "Tank Volume Calculator",
   "content_in_root": false,
   "render_readme": true,
+  "zip_release": true,
+  "filename": "tank_volume.zip",
   "homeassistant": "2025.12.3",
   "hacs": "2.0.5"
 }

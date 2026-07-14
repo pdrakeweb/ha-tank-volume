@@ -1,0 +1,128 @@
+#!/bin/bash
+
+# script/release: Tag and publish a HACS-installable release
+#
+# Verifies a clean, releasable state, builds a clean release zip locally so you can
+# inspect exactly what ships, then creates and pushes the vX.Y.Z tag. Pushing the tag
+# triggers .github/workflows/release.yml, which rebuilds the zip in CI and publishes
+# the GitHub Release that HACS offers to everyone who has the integration installed.
+#
+# Release from a green main (the Validate workflow runs on every push to main).
+#
+# Usage:
+#   ./script/release            # release the version currently in manifest.json
+#   ./script/release X.Y.Z      # bump manifest to X.Y.Z, commit "Release vX.Y.Z", then release
+#   ./script/release --dry-run  # run checks and build the local zip, but do not tag/push
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
+# shellcheck source=script/.lib/output.sh
+source "$SCRIPT_DIR/.lib/output.sh"
+
+require_command git
+
+PY=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "import sys" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+[[ -n "$PY" ]] || die "python3 (or python) is required."
+DOMAIN="tank_volume"
+INTEGRATION_DIR="custom_components/${DOMAIN}"
+MANIFEST="${INTEGRATION_DIR}/manifest.json"
+
+DRY_RUN=false
+NEW_VERSION=""
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=true ;;
+        -*) die "Unknown option: $arg" ;;
+        *) NEW_VERSION="$arg" ;;
+    esac
+done
+
+read_version() { "$PY" -c "import json;print(json.load(open('${MANIFEST}'))['version'])"; }
+
+# Optionally bump the manifest version first.
+if [[ -n "$NEW_VERSION" ]]; then
+    [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Version must be semver X.Y.Z (got '$NEW_VERSION')"
+    log_step "Setting manifest version to ${NEW_VERSION}"
+    "$PY" - "$NEW_VERSION" <<PY
+import json, sys
+p = "${MANIFEST}"
+m = json.load(open(p))
+m["version"] = sys.argv[1]
+open(p, "w").write(json.dumps(m, indent=2) + "\n")
+PY
+fi
+
+VERSION="$(read_version)"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "manifest.json version '${VERSION}' is not semver X.Y.Z"
+TAG="v${VERSION}"
+
+log_header "Preparing release ${TAG}"
+
+# --- Preflight ---------------------------------------------------------------
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+[[ "$BRANCH" == "main" ]] || log_warning "You are on '${BRANCH}', not 'main'."
+
+git fetch --tags --quiet origin || log_warning "Could not fetch tags from origin."
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+    die "Tag ${TAG} already exists locally. Bump the version first."
+fi
+if git ls-remote --tags origin "refs/tags/${TAG}" 2>/dev/null | grep -q "${TAG}$"; then
+    die "Tag ${TAG} already exists on origin."
+fi
+
+# --- Build the clean release zip locally (mirrors the CI workflow) -----------
+log_step "Building dist/${DOMAIN}.zip"
+rm -rf dist
+mkdir -p dist
+"$PY" - "$INTEGRATION_DIR" "dist/${DOMAIN}.zip" <<'PY'
+import os, sys, zipfile
+src, out = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for name in sorted(files):
+            if name.endswith(".pyc"):
+                continue
+            full = os.path.join(root, name)
+            # Store files at the zip root (relative to the integration dir) so HACS
+            # extracts them straight into custom_components/<domain>/.
+            z.write(full, os.path.relpath(full, src))
+print("\n".join(zipfile.ZipFile(out).namelist()))
+PY
+log_info "Zip contents (extracted into custom_components/${DOMAIN}/ by HACS):"
+"$PY" -c "import zipfile;[print('    '+n) for n in zipfile.ZipFile('dist/${DOMAIN}.zip').namelist()]"
+
+if $DRY_RUN; then
+    log_success "Dry run complete: built dist/${DOMAIN}.zip for ${TAG}. No tag or push performed."
+    exit 0
+fi
+
+# --- Commit a version bump if we changed the manifest ------------------------
+if [[ -n "$NEW_VERSION" ]]; then
+    git add "$MANIFEST"
+    git commit -m "Release ${TAG}"
+    log_step "Pushing ${BRANCH}"
+    git push origin "$BRANCH"
+elif [[ -n "$(git status --porcelain)" ]]; then
+    die "Working tree is not clean. Commit or stash your changes before releasing."
+fi
+
+# --- Tag and push (this triggers the Release workflow) -----------------------
+log_step "Creating and pushing tag ${TAG}"
+git tag -a "$TAG" -m "Release ${TAG}"
+git push origin "$TAG"
+
+log_success "Pushed ${TAG}."
+log_info "The Release workflow is building ${DOMAIN}.zip and publishing the GitHub Release now."
+log_info "Progress: https://github.com/pdrakeweb/ha-tank-volume/actions"
+log_info "Release:  https://github.com/pdrakeweb/ha-tank-volume/releases/tag/${TAG}"
+log_info "Once published, HACS will offer ${TAG} to everyone who has the integration installed."
