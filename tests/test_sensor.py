@@ -2,7 +2,7 @@
 
 import calendar
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from freezegun import freeze_time
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -27,7 +27,7 @@ from custom_components.tank_volume.const import (
 )
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
@@ -571,3 +571,54 @@ async def test_burn_cost_uses_price_entity_over_fixed(hass: HomeAssistant) -> No
         # cost uses the $4.00 entity price, not the $3.00 fixed value
         assert abs(float(cost_state.state) - float(monthly_state.state) * 4.0) < 0.1
         assert cost_state.attributes.get("price_per_gallon") == 4.0
+
+
+async def test_burn_rate_backfills_from_recorder_history(hass: HomeAssistant) -> None:
+    """The burn rate is available immediately after setup via recorder backfill."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+    hass.config.components.add("recorder")  # enable the backfill path
+    hass.states.async_set("sensor.fill_height", "18.0")
+
+    def fake_history(hass_, start, end, entity_id, no_attributes=False):
+        # ~3.5 days of hourly history declining 2 gal/day (older readings = more gallons).
+        now = dt_util.utcnow()
+        states = []
+        hours = int((now - start).total_seconds() // 3600)
+        for i in range(hours + 1):
+            t = start + timedelta(hours=i)
+            days_ago = (now - t).total_seconds() / 86400.0
+            states.append(State(entity_id, f"{150.0 + 2.0 * days_ago:.3f}", last_changed=t))
+        return {entity_id: states}
+
+    recorder_stub = MagicMock()
+    recorder_stub.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Backfill Tank",
+        data={
+            CONF_NAME: "Backfill Tank",
+            CONF_SOURCE_ENTITY: "sensor.fill_height",
+            CONF_TANK_DIAMETER: 24.0,
+            CONF_TANK_VOLUME: 250.0,
+            CONF_END_CAP_TYPE: END_CAP_FLAT,
+            CONF_BURN_RATE_WINDOW_DAYS: 3.0,
+        },
+        unique_id="sensor.fill_height",
+    )
+    entry.add_to_hass(hass)
+
+    with (
+        patch("custom_components.tank_volume.sensor.get_instance", return_value=recorder_stub),
+        patch("custom_components.tank_volume.sensor.state_changes_during_period", side_effect=fake_history),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+    daily = next(e for e in entities if e.unique_id.endswith("_daily_burn_rate"))
+    state = hass.states.get(daily.entity_id)
+    # Without backfill this would be "unknown"; with it, ~2 gal/day is available at once.
+    assert state is not None and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+    assert abs(float(state.state) - 2.0) < 0.6

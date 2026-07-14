@@ -1,7 +1,7 @@
 {
   "domain": "tank_volume",
   "name": "Tank Volume Calculator",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "documentation": "https://github.com/pdrakeweb/ha-tank-volume",
   "issue_tracker": "https://github.com/pdrakeweb/ha-tank-volume/issues",
   "requirements": [],
@@ -9,6 +9,9 @@
     "@pdrakeweb"
   ],
   "dependencies": [],
+  "after_dependencies": [
+    "recorder"
+  ],
   "iot_class": "calculated",
   "config_flow": true
 }

@@ -80,6 +80,11 @@ class BurnRateCalculator:
             return 0.0
         return self._samples[-1].t - self._samples[0].t
 
+    @property
+    def retention_seconds(self) -> float:
+        """How far back readings are retained/used (window plus margin)."""
+        return self._window + self._margin
+
     def add(self, timestamp: float, value: float) -> None:
         """Record a contents-volume reading. Out-of-order readings are ignored."""
         if self._samples and timestamp <= self._samples[-1].t:

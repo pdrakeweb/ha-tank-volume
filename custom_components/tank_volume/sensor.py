@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import calendar
+from datetime import timedelta
+from functools import partial
 import logging
 import math
 from typing import Any
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, CONF_NAME, PERCENTAGE, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -762,15 +767,48 @@ class TankBurnSensor(SensorEntity):
             _LOGGER.warning("Burn sensor could not resolve contents-volume entity %s", self._source_unique_id)
             return
 
+        # Backfill the shared calculator from recorder history (once) so the burn rate
+        # is available right after a restart instead of after a multi-day warm-up.
+        if not self._calculator.has_samples:
+            await self._backfill_from_history()
+
         # Seed from the current contents-volume state, if available.
         if (state := self.hass.states.get(self._source_entity_id)) is not None:
             self._ingest(state)
-            self._recalculate()
+        self._recalculate()
 
         tracked = [self._source_entity_id]
         if self._kind == BURN_MONTHLY_COST and self._price_entity:
             tracked.append(self._price_entity)
         self.async_on_remove(async_track_state_change_event(self.hass, tracked, self._async_changed))
+
+    async def _backfill_from_history(self) -> None:
+        """Feed the shared calculator with the source entity's recorder history."""
+        if self._source_entity_id is None or "recorder" not in self.hass.config.components:
+            return
+        start = dt_util.utcnow() - timedelta(seconds=self._calculator.retention_seconds)
+        try:
+            history = await get_instance(self.hass).async_add_executor_job(
+                partial(
+                    state_changes_during_period,
+                    self.hass,
+                    start,
+                    None,
+                    self._source_entity_id,
+                    no_attributes=True,
+                )
+            )
+        except (HomeAssistantError, KeyError, RuntimeError):
+            _LOGGER.debug("Burn-rate history backfill failed for %s", self._source_entity_id, exc_info=True)
+            return
+        for state in history.get(self._source_entity_id, []):
+            if state.state in ("unknown", "unavailable", None):
+                continue
+            try:
+                gallons = float(state.state)
+            except (ValueError, TypeError):
+                continue
+            self._calculator.add(state.last_changed.timestamp(), gallons)
 
     @callback
     def _async_changed(self, event: Event[EventStateChangedData]) -> None:
