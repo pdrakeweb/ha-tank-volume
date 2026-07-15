@@ -622,3 +622,53 @@ async def test_burn_rate_backfills_from_recorder_history(hass: HomeAssistant) ->
     # Without backfill this would be "unknown"; with it, ~2 gal/day is available at once.
     assert state is not None and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
     assert abs(float(state.state) - 2.0) < 0.6
+
+
+async def test_burn_rate_provisional_when_new(hass: HomeAssistant) -> None:
+    """A brand-new sensor (no history) emits a rough, self-correcting value, not unknown."""
+    assert await async_setup_component(hass, SENSOR_DOMAIN, {})
+    start = dt_util.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    with freeze_time(start) as frozen:
+        hass.states.async_set("sensor.fill_height", "18.0")
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            title="New Tank",
+            data={
+                CONF_NAME: "New Tank",
+                CONF_SOURCE_ENTITY: "sensor.fill_height",
+                CONF_TANK_DIAMETER: 24.0,
+                CONF_TANK_VOLUME: 250.0,
+                CONF_END_CAP_TYPE: END_CAP_FLAT,
+                CONF_BURN_RATE_WINDOW_DAYS: 7.0,
+            },
+            unique_id="sensor.fill_height",
+        )
+        entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # A brand-new sensor needs two readings before any *rate* exists; feed them
+        # a few hours apart — far short of the 7-day window's half-span, so the
+        # rigorous fit declines and the provisional path supplies the value.
+        frozen.move_to(start + timedelta(hours=3))
+        hass.states.async_set("sensor.fill_height", "17.8")
+        await hass.async_block_till_done()
+        frozen.move_to(start + timedelta(hours=6))
+        hass.states.async_set("sensor.fill_height", "17.6")
+        await hass.async_block_till_done()
+
+        registry = er.async_get(hass)
+        entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+        daily = next(e for e in entities if e.unique_id.endswith("_daily_burn_rate"))
+        state = hass.states.get(daily.entity_id)
+        assert state is not None and state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+        assert float(state.state) > 0  # a usable number immediately
+        assert state.attributes.get("provisional") is True
+
+        # Once enough history accumulates the value flips to the trustworthy fit.
+        for day in range(1, 8):
+            frozen.move_to(start + timedelta(days=day))
+            hass.states.async_set("sensor.fill_height", f"{18.0 - 0.4 * day:.3f}")
+            await hass.async_block_till_done()
+        state = hass.states.get(daily.entity_id)
+        assert state is not None and state.attributes.get("provisional") is False

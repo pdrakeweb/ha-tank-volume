@@ -98,11 +98,28 @@ class BurnRateCalculator:
         """Return the estimated consumption in units/day (>= 0), or None.
 
         None means there isn't enough usable history yet (cold start, or just
-        after a refill) — callers should hold the previous value rather than
-        emitting a spurious reading.
+        after a refill) — callers should hold the previous value, or fall back
+        to :meth:`daily_burn_provisional`, rather than emitting a value they
+        don't trust.
         """
+        return self._estimate(now, self._min_samples, self._min_span)
+
+    def daily_burn_provisional(self, now: float) -> float | None:
+        """Best-effort estimate from whatever little history exists, or None.
+
+        Deliberately loose: it needs only two readings spanning any positive
+        time, so a brand-new sensor produces a (possibly wildly inaccurate)
+        number immediately instead of sitting at ``unknown``. The estimate
+        self-corrects as the window fills and :meth:`daily_burn` takes over.
+        Returns None only when a rate genuinely can't be formed yet (fewer than
+        two readings, or no time elapsed between them).
+        """
+        return self._estimate(now, 2, 0.0)
+
+    def _estimate(self, now: float, min_samples: int, min_span: float) -> float | None:
+        """Fit the (optionally weighted) trend under the given sample/span gates."""
         window = [s for s in self._samples if s.t >= now - self._window]
-        if len(window) < self._min_samples:
+        if len(window) < min_samples:
             return None
 
         # Restart the trend after the most recent refill (large upward step).
@@ -111,11 +128,11 @@ class BurnRateCalculator:
             if window[i].value - window[i - 1].value > self._refill:
                 start = i
         seg = window[start:]
-        if len(seg) < self._min_samples:
+        if len(seg) < min_samples:
             return None
 
         span = seg[-1].t - seg[0].t
-        if span < self._min_span or span <= 0:
+        if span <= 0 or span < min_span:
             return None
 
         weights = None

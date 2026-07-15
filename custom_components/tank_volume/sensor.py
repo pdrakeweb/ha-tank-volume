@@ -419,7 +419,13 @@ async def async_setup_entry(
                 currency=currency,
             ),
         ]
-        async_add_entities(sensors + burn_sensors, True)
+        # Schedule the volume sensors before the burn sensors so the contents-volume
+        # entity is more likely to have a written state when a burn sensor seeds
+        # itself on add. Seeding is only a best-effort head start though: a brand-new
+        # sensor still needs a second live reading before any rate exists, and the
+        # burn sensor's state-change subscription supplies the seed if the add races.
+        async_add_entities(sensors, True)
+        async_add_entities(burn_sensors, True)
         return
 
     async_add_entities(sensors, True)
@@ -718,6 +724,7 @@ class TankBurnSensor(SensorEntity):
         self._price_entity = price_entity
         self._source_entity_id: str | None = None
         self._last_daily_burn: float | None = None
+        self._provisional = False
         self._attr_state_class = SensorStateClass.MEASUREMENT
         if kind == BURN_DAILY:
             self._attr_name = "Burn rate"
@@ -752,6 +759,10 @@ class TankBurnSensor(SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
         attrs: dict[str, Any] = {"source_entity": self._source_entity_id}
+        # True while the value is a rough, self-correcting estimate from too little
+        # history for a trustworthy trend (e.g. a brand-new sensor). It clears once
+        # enough readings accumulate for the full-window fit.
+        attrs["provisional"] = self._provisional
         if self._kind == BURN_MONTHLY_COST:
             attrs["price_per_gallon"] = self._current_price()
             if self._price_entity:
@@ -839,9 +850,22 @@ class TankBurnSensor(SensorEntity):
         return self._price if self._price > 0 else None
 
     def _recalculate(self) -> None:
-        burn = self._calculator.daily_burn(dt_util.utcnow().timestamp())
+        now_ts = dt_util.utcnow().timestamp()
+        burn = self._calculator.daily_burn(now_ts)
         if burn is not None:
             self._last_daily_burn = burn
+            self._provisional = False
+        elif self._provisional or self._last_daily_burn is None:
+            # Still warming up (or never had a trustworthy value): emit a rough
+            # estimate from whatever we have so the value is usable immediately
+            # instead of unknown, and refresh it each cycle so it self-corrects as
+            # the window fills. Once daily_burn() succeeds it takes over for good.
+            provisional = self._calculator.daily_burn_provisional(now_ts)
+            if provisional is not None:
+                self._last_daily_burn = provisional
+                self._provisional = True
+        # else: had a trustworthy value and daily_burn is briefly None (e.g. just
+        # after a refill) — hold the last good value rather than downgrading it.
         daily = self._last_daily_burn
         if daily is None:
             self._attr_native_value = None

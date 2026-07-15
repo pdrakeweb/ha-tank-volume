@@ -170,6 +170,14 @@ noise (and the roughly zero-mean daily thermal wave) and gives a stable estimate
 are detected as a large upward jump and the trend is measured only over the data since the
 most recent refill**, so a fill-up never reads as negative consumption.
 
+**Startup / warm-up.** The multi-day trend normally needs about half a window of readings
+before it's trustworthy. To avoid sitting at `Unknown` after install or a restart, the burn
+sensors fill in as soon as possible: on startup they backfill from the recorder's history of
+the contents-volume entity, and a brand-new sensor with no history falls back to a rough
+estimate from its first couple of readings that self-corrects as the window fills. While a
+value is this provisional estimate, the sensor carries a `provisional: true` attribute; it
+clears to `false` once the full-window fit takes over. Treat provisional values as rough.
+
 Settings (in the integration's **Configure** / options):
 
 | Setting | Default | Purpose |

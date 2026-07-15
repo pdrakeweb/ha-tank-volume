@@ -109,3 +109,30 @@ def test_weighted_reacts_faster_to_a_step():
     burn_uniform = uniform.daily_burn(t)
     assert burn_weighted is not None and burn_uniform is not None
     assert burn_weighted > burn_uniform  # recent-weighted picks up the new higher rate sooner
+
+
+def test_provisional_from_little_data():
+    """Too little data for a trustworthy trend still yields a rough estimate."""
+    calc = BurnRateCalculator(window_seconds=7 * DAY, min_span_fraction=0.5)
+    t = _feed(calc, 300.0, 2.0, days=1)  # < 3.5-day min span -> daily_burn is None
+    assert calc.daily_burn(t) is None
+    prov = calc.daily_burn_provisional(t)
+    assert prov is not None
+    assert abs(prov - 2.0) < 0.2
+
+
+def test_provisional_needs_two_samples():
+    """A single reading can't form a rate; provisional stays None until the second."""
+    calc = BurnRateCalculator(window_seconds=7 * DAY)
+    assert calc.daily_burn_provisional(0.0) is None
+    calc.add(0.0, 300.0)
+    assert calc.daily_burn_provisional(0.0) is None
+    calc.add(3600.0, 299.9)  # second reading an hour later
+    assert calc.daily_burn_provisional(3600.0) is not None
+
+
+def test_provisional_agrees_with_rigorous_when_ample():
+    """Once there's ample history the rough and rigorous estimates coincide."""
+    calc = BurnRateCalculator(window_seconds=7 * DAY)
+    t = _feed(calc, 300.0, 2.0, days=10)
+    assert abs(calc.daily_burn_provisional(t) - calc.daily_burn(t)) < 1e-6
